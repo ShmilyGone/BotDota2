@@ -4,12 +4,13 @@ import time
 import re
 import urllib.request
 import logging
-from typing import Optional, Set
+from typing import Optional, Set, Dict
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+import pytchat
 
 from opendota_client import OpenDotaClient
 
@@ -28,7 +29,7 @@ def extract_video_id(url_or_id: str) -> str:
 
 def resolve_channel_live_video(target_channel: str) -> Optional[str]:
     """
-    Find active live video ID for a channel handle or URL.
+    Find active live video ID for a channel handle or URL without consuming API quota.
     Supports handles like '@DHDota2' or full URLs 'https://www.youtube.com/@DHDota2'.
     """
     target = target_channel.strip()
@@ -86,6 +87,9 @@ class YouTubeLiveChatBot:
         self.current_video_id: Optional[str] = None
         self.bot_channel_id: Optional[str] = None
         
+        # Cache video_id -> live_chat_id so we only fetch once (1 quota unit per stream)
+        self.chat_id_cache: Dict[str, str] = {}
+        
         # Cooldown trackers
         self.last_command_time = {}
         self.last_global_reply_time = 0.0
@@ -131,65 +135,59 @@ class YouTubeLiveChatBot:
                 logger.info(f"Đã xác thực thành công tài khoản Bot: '{title}' (Channel ID: {self.bot_channel_id})")
             else:
                 logger.warning("Tài khoản Google này chưa tạo kênh YouTube! Hãy vào youtube.com bấm 'Tạo kênh' để có thể nhắn tin vào Live Chat.")
+        except HttpError as e:
+            if "quotaExceeded" in str(e):
+                logger.warning("⚠️ Quota tài khoản YouTube hôm nay đang hết. Bot vẫn đọc được chat bằng pytchat (0 Quota)!")
+            else:
+                logger.warning(f"Không thể lấy thông tin kênh bot: {e}")
         except Exception as e:
             logger.warning(f"Không thể lấy thông tin kênh bot: {e}")
 
-    def resolve_live_chat_id(self) -> Optional[str]:
-        """Find active liveChatId. Returns None if streamer is currently offline."""
-        target_vid = self.video_id
+    def fetch_live_chat_id(self, target_vid: str) -> Optional[str]:
+        """Fetch activeLiveChatId for a video once and cache it (costs only 1 API unit per stream)."""
+        if target_vid in self.chat_id_cache:
+            return self.chat_id_cache[target_vid]
 
-        # 1. If no explicit video_id, try discovering from target_channel
-        if not target_vid and self.target_channel:
-            target_vid = resolve_channel_live_video(self.target_channel)
-
-        # 2. Check if discovered video is currently live with active chat
-        if target_vid:
-            try:
-                resp = self.youtube.videos().list(
-                    part="liveStreamingDetails,snippet",
-                    id=target_vid
-                ).execute()
-                items = resp.get("items", [])
-                if items:
-                    streaming_details = items[0].get("liveStreamingDetails")
-                    snippet = items[0].get("snippet", {})
-                    live_broadcast_content = snippet.get("liveBroadcastContent", "none")
-                    
-                    if streaming_details and live_broadcast_content == "live":
-                        chat_id = streaming_details.get("activeLiveChatId")
-                        if chat_id:
-                            title = snippet.get("title", "")
-                            channel_title = snippet.get("channelTitle", "")
-                            logger.info(f"✅ Đã kết nối Live Chat luồng của [{channel_title}]: '{title}' (Chat ID: {chat_id})")
-                            self.current_video_id = target_vid
-                            return chat_id
-            except Exception as e:
-                logger.warning(f"Lỗi kiểm tra video {target_vid}: {e}")
-
-        # 3. Fallback: Check own broadcasts if streaming from bot's own account
-        if not self.target_channel:
-            try:
-                resp = self.youtube.liveBroadcasts().list(
-                    part="snippet,status",
-                    broadcastType="all",
-                    mine=True
-                ).execute()
-                for broadcast in resp.get("items", []):
-                    snippet = broadcast.get("snippet", {})
-                    chat_id = snippet.get("liveChatId")
+        try:
+            resp = self.youtube.videos().list(
+                part="liveStreamingDetails,snippet",
+                id=target_vid
+            ).execute()
+            items = resp.get("items", [])
+            if items:
+                streaming_details = items[0].get("liveStreamingDetails")
+                snippet = items[0].get("snippet", {})
+                live_broadcast_content = snippet.get("liveBroadcastContent", "none")
+                
+                if streaming_details and live_broadcast_content == "live":
+                    chat_id = streaming_details.get("activeLiveChatId")
                     if chat_id:
-                        title = snippet.get("title", "Live Stream")
-                        logger.info(f"Đã tìm thấy buổi phát trực tiếp: '{title}' (Chat ID: {chat_id})")
+                        title = snippet.get("title", "")
+                        channel_title = snippet.get("channelTitle", "")
+                        logger.info(f"✅ Đã kết nối gửi tin nhắn vào Live Chat [{channel_title}]: '{title}' (Chat ID: {chat_id})")
+                        self.chat_id_cache[target_vid] = chat_id
                         return chat_id
-            except Exception:
-                pass
+        except HttpError as e:
+            if "quotaExceeded" in str(e):
+                logger.error("❌ Quota YouTube API hôm nay đã hết! Bot không thể gửi tin nhắn phản hồi cho đến khi Quota reset.")
+            else:
+                logger.warning(f"Lỗi khi lấy liveChatId cho video {target_vid}: {e}")
+        except Exception as e:
+            logger.warning(f"Lỗi kiểm tra video {target_vid}: {e}")
+        return None
 
+    def resolve_video_id(self) -> Optional[str]:
+        """Find the active video ID for target channel without using API quota."""
+        if self.video_id:
+            return self.video_id
+        if self.target_channel:
+            return resolve_channel_live_video(self.target_channel)
         return None
 
     def send_chat_message(self, text: str):
-        """Send a message to YouTube Live Chat, ensuring it doesn't exceed 200 characters."""
+        """Send a message to YouTube Live Chat (costs 20 API units)."""
         if not self.live_chat_id:
-            logger.warning("Chưa có live_chat_id, không thể gửi tin nhắn.")
+            logger.warning("Chưa có live_chat_id (có thể do Quota API đã hết), không thể gửi tin nhắn.")
             return
 
         if len(text) > 200:
@@ -211,10 +209,13 @@ class YouTubeLiveChatBot:
             self.last_global_reply_time = time.time()
             logger.info(f"🤖 Đã trả lời chat: {text}")
         except HttpError as e:
-            logger.error(f"Lỗi khi gửi tin nhắn chat: {e}")
-            if "liveChatEnded" in str(e):
+            if "quotaExceeded" in str(e):
+                logger.error("❌ Quota YouTube API đã chạm giới hạn 10.000 units hôm nay. Tin nhắn không gửi được.")
+            elif "liveChatEnded" in str(e):
                 logger.warning("Buổi livestream đã kết thúc.")
                 self.live_chat_id = None
+            else:
+                logger.error(f"Lỗi khi gửi tin nhắn chat: {e}")
 
     def handle_command(self, command: str, author_name: str) -> Optional[str]:
         """Process chat command and return response string if applicable."""
@@ -250,92 +251,69 @@ class YouTubeLiveChatBot:
         return None
 
     def start_polling(self):
-        """Main loop: Standby when offline, poll live chat when streamer goes live."""
+        """
+        Main loop using HYBRID architecture:
+        - Chat Reading: via `pytchat` (0 Quota cost, runs 24/7 forever!)
+        - Chat Writing: via official YouTube API (only 20 Quota cost per response)
+        """
         if not self.youtube:
             self.authenticate()
 
-        next_page_token = None
-        is_first_poll = True
-
-        logger.info(f"🚀 Bot Dota 2 đang ở chế độ chờ sẵn cho kênh: {self.target_channel or 'kênh của bạn'}!")
+        logger.info(f"🚀 Bot Dota 2 đang ở chế độ HYBRID SIÊU TIẾT KIỆM QUOTA cho kênh: {self.target_channel or 'kênh của bạn'}!")
 
         while True:
             try:
-                # If not currently connected to an active chat, attempt to resolve
-                if not self.live_chat_id:
-                    self.live_chat_id = self.resolve_live_chat_id()
-                    if not self.live_chat_id:
-                        # Streamer is offline, wait 30s before checking again
-                        time.sleep(30)
-                        continue
-                    else:
-                        next_page_token = None
-                        is_first_poll = True
-                        logger.info("🟢 Luồng Live đã bắt đầu! Đang lắng nghe chat...")
+                vid = self.resolve_video_id()
+                if not vid:
+                    logger.info("Chưa tìm thấy buổi livestream đang phát. Đang đợi streamer bật live (kiểm tra lại sau 30s)...")
+                    time.sleep(30)
+                    continue
 
-                params = {
-                    "liveChatId": self.live_chat_id,
-                    "part": "snippet,authorDetails"
-                }
-                if next_page_token:
-                    params["pageToken"] = next_page_token
+                self.current_video_id = vid
+                logger.info(f"🎯 Đã phát hiện buổi stream: https://www.youtube.com/watch?v=s (ID: {vid})")
 
-                resp = self.youtube.liveChatMessages().list(**params).execute()
-                next_page_token = resp.get("nextPageToken")
-                poll_interval = resp.get("pollingIntervalMillis", 4000) / 1000.0
-                poll_interval = max(poll_interval, 3.0)
+                # Lấy live_chat_id để chuẩn bị gửi tin nhắn (chỉ tốn 1 unit và được lưu cache)
+                self.live_chat_id = self.fetch_live_chat_id(vid)
 
-                items = resp.get("items", [])
+                logger.info(f"📡 Đang kết nối lắng nghe chat qua pytchat (0 Quota API)...")
+                chat = pytchat.create(video_id=vid)
 
-                if is_first_poll:
-                    for item in items:
-                        self.seen_message_ids.add(item.get("id"))
-                    is_first_poll = False
-                    logger.info(f"Đã kết nối, bỏ qua {len(items)} tin nhắn cũ trước khi bot vào.")
-                else:
-                    for item in items:
-                        msg_id = item.get("id")
-                        if msg_id in self.seen_message_ids:
-                            continue
-                        self.seen_message_ids.add(msg_id)
+                if not chat.is_alive():
+                    logger.warning("Không thể mở luồng live chat qua pytchat. Thử lại sau 15s...")
+                    time.sleep(15)
+                    continue
 
-                        author_details = item.get("authorDetails", {})
-                        author_channel_id = author_details.get("channelId")
-                        author_name = author_details.get("displayName", "Viewer")
+                logger.info("🟢 ĐÃ KẾT NỐI LIVE CHAT THÀNH CÔNG! Bot đang lắng nghe mọi tin nhắn với 0 QUOTA.")
 
-                        # Ignore messages from the bot itself
-                        if self.bot_channel_id and author_channel_id == self.bot_channel_id:
-                            continue
+                # Lắng nghe tin nhắn
+                while chat.is_alive():
+                    try:
+                        for c in chat.get().sync_items():
+                            author_name = getattr(c.author, "name", "Viewer")
+                            author_channel_id = getattr(c.author, "channelId", "")
 
-                        snippet = item.get("snippet", {})
-                        msg_type = snippet.get("type")
-                        
-                        if msg_type == "textMessageEvent":
-                            text_details = snippet.get("textMessageDetails", {})
-                            msg_text = text_details.get("messageText", "").strip()
+                            # Bỏ qua tin nhắn từ chính tài khoản Bot
+                            if self.bot_channel_id and author_channel_id == self.bot_channel_id:
+                                continue
+
+                            msg_text = getattr(c, "message", "").strip()
 
                             if msg_text.startswith("!"):
                                 logger.info(f"💬 Nhận lệnh từ [{author_name}]: {msg_text}")
                                 reply = self.handle_command(msg_text, author_name)
                                 if reply:
                                     self.send_chat_message(reply)
+                    except Exception as e:
+                        logger.warning(f"Lỗi đọc tin nhắn pytchat: {e}")
 
-                if len(self.seen_message_ids) > 1000:
-                    self.seen_message_ids = set(list(self.seen_message_ids)[-500:])
+                    time.sleep(1.0)
 
-                time.sleep(poll_interval)
+                logger.warning("⚠️ Luồng livestream có thể đã kết thúc hoặc chuyển link mới. Đang quét lại sau 15s...")
+                time.sleep(15)
 
-            except HttpError as e:
-                logger.error(f"Lỗi YouTube API: {e}")
-                if "liveChatEnded" in str(e) or "liveChatNotFound" in str(e):
-                    logger.warning("Luồng livestream đã kết thúc hoặc đóng chat. Bot chuyển về chế độ chờ luồng tiếp theo...")
-                    self.live_chat_id = None
-                    time.sleep(30)
-                else:
-                    time.sleep(10)
             except KeyboardInterrupt:
                 logger.info("Đã dừng bot theo yêu cầu người dùng.")
                 break
             except Exception as e:
-                logger.error(f"Lỗi không mong muốn: {e}")
-                time.sleep(5)
+                logger.error(f"Lỗi không mong muốn trong vòng lặp bot: {e}")
+                time.sleep(10)
