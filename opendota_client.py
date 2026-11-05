@@ -20,6 +20,137 @@ TIER_NAMES = {
     8: "Immortal"
 }
 
+# Tên viết tắt thông dụng trong cộng đồng Dota 2
+HERO_ABBREVIATIONS = {
+    "Anti-Mage": "AM",
+    "Axe": "Axe",
+    "Bane": "Bane",
+    "Bloodseeker": "BS",
+    "Crystal Maiden": "CM",
+    "Drow Ranger": "Drow",
+    "Earthshaker": "ES",
+    "Juggernaut": "Jugg",
+    "Mirana": "Mirana",
+    "Morphling": "Morph",
+    "Shadow Fiend": "SF",
+    "Phantom Lancer": "PL",
+    "Puck": "Puck",
+    "Pudge": "Pudge",
+    "Razor": "Razor",
+    "Sand King": "SK",
+    "Storm Spirit": "Storm",
+    "Sven": "Sven",
+    "Tiny": "Tiny",
+    "Vengeful Spirit": "Venge",
+    "Windranger": "WR",
+    "Zeus": "Zeus",
+    "Kunkka": "Kunkka",
+    "Lina": "Lina",
+    "Lion": "Lion",
+    "Shadow Shaman": "Shaman",
+    "Slardar": "Slardar",
+    "Tidehunter": "Tide",
+    "Witch Doctor": "WD",
+    "Lich": "Lich",
+    "Riki": "Riki",
+    "Enigma": "Enigma",
+    "Tinker": "Tinker",
+    "Sniper": "Sniper",
+    "Necrophos": "Necro",
+    "Warlock": "Warlock",
+    "Beastmaster": "BM",
+    "Queen of Pain": "QoP",
+    "Venomancer": "Veno",
+    "Faceless Void": "Void",
+    "Wraith King": "WK",
+    "Death Prophet": "DP",
+    "Phantom Assassin": "PA",
+    "Pugna": "Pugna",
+    "Templar Assassin": "TA",
+    "Viper": "Viper",
+    "Luna": "Luna",
+    "Dragon Knight": "DK",
+    "Dazzle": "Dazzle",
+    "Clockwerk": "Clock",
+    "Leshrac": "Lesh",
+    "Nature's Prophet": "NP",
+    "Lifestealer": "LS",
+    "Dark Seer": "DS",
+    "Clinkz": "Clinkz",
+    "Omniknight": "Omni",
+    "Enchantress": "Ench",
+    "Huskar": "Huskar",
+    "Night Stalker": "NS",
+    "Broodmother": "Brood",
+    "Bounty Hunter": "BH",
+    "Weaver": "Weaver",
+    "Jakiro": "Jakiro",
+    "Batrider": "Bat",
+    "Chen": "Chen",
+    "Spectre": "Spec",
+    "Ancient Apparition": "AA",
+    "Doom": "Doom",
+    "Ursa": "Ursa",
+    "Spirit Breaker": "SB",
+    "Gyrocopter": "Gyro",
+    "Alchemist": "Alche",
+    "Invoker": "Invo",
+    "Silencer": "Silencer",
+    "Outworld Destroyer": "OD",
+    "Outworld Devourer": "OD",
+    "Lycan": "Lycan",
+    "Brewmaster": "Brew",
+    "Shadow Demon": "SD",
+    "Lone Druid": "LD",
+    "Chaos Knight": "CK",
+    "Meepo": "Meepo",
+    "Treant Protector": "Treant",
+    "Ogre Magi": "Ogre",
+    "Undying": "Undying",
+    "Rubick": "Rubick",
+    "Disruptor": "Disruptor",
+    "Nyx Assassin": "Nyx",
+    "Naga Siren": "Naga",
+    "Keeper of the Light": "KotL",
+    "Io": "Io",
+    "Visage": "Visage",
+    "Slark": "Slark",
+    "Medusa": "Dusa",
+    "Troll Warlord": "Troll",
+    "Centaur Warrunner": "Centaur",
+    "Magnus": "Mag",
+    "Timbersaw": "Timber",
+    "Bristleback": "BB",
+    "Tusk": "Tusk",
+    "Skywrath Mage": "Sky",
+    "Abaddon": "Abaddon",
+    "Elder Titan": "ET",
+    "Legion Commander": "LC",
+    "Techies": "Techies",
+    "Ember Spirit": "Ember",
+    "Earth Spirit": "Earth Spirit",
+    "Underlord": "Underlord",
+    "Terrorblade": "TB",
+    "Phoenix": "Phoenix",
+    "Oracle": "Oracle",
+    "Winter Wyvern": "WW",
+    "Arc Warden": "Arc",
+    "Monkey King": "MK",
+    "Dark Willow": "Willow",
+    "Pangolier": "Pango",
+    "Grimstroke": "Grim",
+    "Hoodwink": "Hoodwink",
+    "Void Spirit": "Void Spirit",
+    "Snapfire": "Snap",
+    "Mars": "Mars",
+    "Dawnbreaker": "Dawn",
+    "Marci": "Marci",
+    "Primal Beast": "PB",
+    "Muerta": "Muerta",
+    "Ringmaster": "Ringmaster",
+    "Kez": "Kez"
+}
+
 class OpenDotaClient:
     def __init__(
         self,
@@ -101,6 +232,11 @@ class OpenDotaClient:
             except Exception:
                 return f"Hero #{hero_id}"
         return self._heroes_cache.get(hero_id, f"Hero #{hero_id}")
+
+    def get_hero_short_name(self, hero_id: int) -> str:
+        """Get common community abbreviation for hero name (e.g. Outworld Devourer -> OD, Templar Assassin -> TA)."""
+        full_name = self.get_hero_name(hero_id)
+        return HERO_ABBREVIATIONS.get(full_name, full_name)
 
     def get_player_data(self, force_refresh: bool = False) -> Dict[str, Any]:
         """Fetch player profile, rank and MMR estimates with stale cache fallback."""
@@ -312,7 +448,7 @@ class OpenDotaClient:
                 else:
                     losses += 1
                 
-                h_name = self.get_hero_name(m.get("hero_id", 0))
+                h_name = self.get_hero_short_name(m.get("hero_id", 0))
                 if h_name not in hero_counts:
                     hero_counts[h_name] = {"w": 0, "l": 0}
                 if won:
@@ -326,7 +462,7 @@ class OpenDotaClient:
             latest = session_matches[0]
             lat_radiant = latest.get("player_slot", 0) < 128
             lat_won = (latest.get("radiant_win") and lat_radiant) or (not latest.get("radiant_win") and not lat_radiant)
-            lat_hero = self.get_hero_name(latest.get("hero_id", 0))
+            lat_hero = self.get_hero_short_name(latest.get("hero_id", 0))
             lat_res = "Thắng ✅" if lat_won else "Thua ❌"
             lat_kda = f"{latest.get('kills', 0)}/{latest.get('deaths', 0)}/{latest.get('assists', 0)}"
 
@@ -335,23 +471,28 @@ class OpenDotaClient:
                 f"Vừa xong: {lat_hero} ({lat_kda}) {lat_res} | Tướng: "
             )
 
-            # Dynamically include as many heroes as possible up to YouTube's 195-char limit
+            # Dynamically include abbreviated heroes up to 185 chars, append '...' if truncated
             hero_items = [f"{h} ({s['w']}W-{s['l']}L)" for h, s in hero_counts.items()]
             included_heroes = []
+            has_more = False
+
             for item in hero_items:
+                max_len = 182 if (len(included_heroes) + 1 < len(hero_items)) else 185
                 test_str = ", ".join(included_heroes + [item])
-                if len(base_msg + test_str) <= 195:
+                if len(base_msg + test_str) <= max_len:
                     included_heroes.append(item)
                 else:
-                    rem = len(hero_items) - len(included_heroes)
-                    if rem > 0:
-                        included_heroes.append(f"+{rem} tướng")
+                    has_more = True
                     break
 
             if not included_heroes:
-                included_heroes = hero_items[:3]
+                included_heroes = hero_items[:1]
 
-            return base_msg + ", ".join(included_heroes)
+            hero_str = ", ".join(included_heroes)
+            if has_more:
+                hero_str += "..."
+
+            return base_msg + hero_str
         except Exception:
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
