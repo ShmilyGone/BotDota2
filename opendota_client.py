@@ -2,7 +2,12 @@ import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 import threading
+import logging
+
+logger = logging.getLogger("OpenDotaClient")
 
 TIER_NAMES = {
     1: "Herald",
@@ -32,26 +37,40 @@ class OpenDotaClient:
         self.manual_mmr = manual_mmr
         self.session_gap_hours = session_gap_hours
         
+        # Configure robust HTTP session with automatic retries for dropped connections
         self.session = requests.Session()
+        retries = Retry(
+            total=3,
+            connect=3,
+            read=3,
+            backoff_factor=0.5,
+            status_forcelist=[429, 500, 502, 503, 504],
+            raise_on_status=False
+        )
+        adapter = HTTPAdapter(max_retries=retries, pool_connections=10, pool_maxsize=10)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
+        
         self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Dota2StreamBot/1.2"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Dota2StreamBot/1.3",
+            "Accept": "application/json"
         })
         
-        # In-memory caches
+        # In-memory caches (preserve stale data on transient network hiccups)
         self._heroes_cache: Dict[int, str] = {}
         self._profile_cache: Optional[Dict[str, Any]] = None
         self._profile_cache_time = 0.0
         self._matches_cache: Optional[List[Dict[str, Any]]] = None
         self._matches_cache_time = 0.0
         self.cache_ttl_profile = 60.0
-        self.cache_ttl_matches = 15.0  # Check fresh matches every 15s
+        self.cache_ttl_matches = 20.0
         
         self._last_refresh_time = 0.0
 
     def trigger_opendota_refresh(self):
         """Asynchronously notify OpenDota to sync recent matches from Valve."""
         now = time.time()
-        if now - self._last_refresh_time > 120.0:  # Rate limit refresh request: once every 2 mins
+        if now - self._last_refresh_time > 120.0:
             self._last_refresh_time = now
             def _refresh():
                 try:
@@ -68,7 +87,7 @@ class OpenDotaClient:
         p = params.copy() if params else {}
         if self.api_key:
             p["api_key"] = self.api_key
-        resp = self.session.get(url, params=p, timeout=10)
+        resp = self.session.get(url, params=p, timeout=12)
         resp.raise_for_status()
         return resp.json()
 
@@ -84,15 +103,22 @@ class OpenDotaClient:
         return self._heroes_cache.get(hero_id, f"Hero #{hero_id}")
 
     def get_player_data(self, force_refresh: bool = False) -> Dict[str, Any]:
-        """Fetch player profile, rank and MMR estimates."""
+        """Fetch player profile, rank and MMR estimates with stale cache fallback."""
         now = time.time()
         if not force_refresh and self._profile_cache and (now - self._profile_cache_time < self.cache_ttl_profile):
             return self._profile_cache
 
-        data = self._api_get(f"players/{self.account_id}")
-        self._profile_cache = data
-        self._profile_cache_time = now
-        return data
+        try:
+            data = self._api_get(f"players/{self.account_id}")
+            self._profile_cache = data
+            self._profile_cache_time = now
+            return data
+        except Exception as e:
+            # Fall back to stale cache if network glitch occurs
+            if self._profile_cache:
+                logger.warning(f"Lỗi kết nối OpenDota, dùng dữ liệu cache cũ: {e}")
+                return self._profile_cache
+            raise e
 
     def _fetch_steam_matches(self) -> List[Dict[str, Any]]:
         """Fetch real-time matches directly from Valve Steam Web API if STEAM_API_KEY is provided."""
@@ -116,7 +142,6 @@ class OpenDotaClient:
                 match_id = rm.get("match_id")
                 start_time = rm.get("start_time")
                 
-                # Find the player inside match
                 player_entry = next((p for p in rm.get("players", []) if str(p.get("account_id")) == self.account_id), None)
                 if not player_entry:
                     continue
@@ -124,7 +149,6 @@ class OpenDotaClient:
                 hero_id = player_entry.get("hero_id")
                 player_slot = player_entry.get("player_slot", 0)
                 
-                # Fetch match details for win/loss and kda
                 det_url = "https://api.steampowered.com/IDOTA2Match_570/GetMatchDetails/v1/"
                 det_resp = self.session.get(det_url, params={"key": self.steam_api_key, "match_id": match_id}, timeout=6)
                 if det_resp.status_code == 200:
@@ -156,12 +180,11 @@ class OpenDotaClient:
             return []
 
     def get_recent_matches(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
-        """Fetch recent matches, combining Steam Web API (real-time) with OpenDota."""
+        """Fetch recent matches with stale cache fallback on network drops."""
         now = time.time()
         if not force_refresh and self._matches_cache and (now - self._matches_cache_time < self.cache_ttl_matches):
             return self._matches_cache
 
-        # Asynchronously ask OpenDota to refresh so its database catches up
         self.trigger_opendota_refresh()
 
         # Try Steam API first for 0s latency
@@ -172,10 +195,17 @@ class OpenDotaClient:
             return steam_matches
 
         # Fallback to OpenDota
-        data = self._api_get(f"players/{self.account_id}/matches", params={"limit": 25})
-        self._matches_cache = data
-        self._matches_cache_time = now
-        return data
+        try:
+            data = self._api_get(f"players/{self.account_id}/matches", params={"limit": 25})
+            self._matches_cache = data
+            self._matches_cache_time = now
+            return data
+        except Exception as e:
+            # If server dropped connection, return existing cache instead of crashing
+            if self._matches_cache:
+                logger.warning(f"Lỗi mạng OpenDota, dùng dữ liệu trận đấu đã lưu trước đó: {e}")
+                return self._matches_cache
+            raise e
 
     def get_session_matches(self) -> List[Dict[str, Any]]:
         """
@@ -198,7 +228,6 @@ class OpenDotaClient:
                 if gap_hours <= self.session_gap_hours:
                     session_matches.append(m)
                 else:
-                    # Found a large gap (e.g. sleep/break), stop adding older games
                     break
         return session_matches
 
@@ -231,8 +260,8 @@ class OpenDotaClient:
             
             rank_str = self.format_rank(rank_tier, leaderboard_rank)
             return f"🏅 Rank hiện tại của {name}: {rank_str}"
-        except Exception as e:
-            return f"⚠️ Không thể lấy thông tin Rank: {e}"
+        except Exception:
+            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_mmr_message(self) -> str:
         """Generate response for !mmr command."""
@@ -257,8 +286,8 @@ class OpenDotaClient:
                 parts.append("Valve hiện ẩn chỉ số MMR chính xác từ API")
             
             return " | ".join(parts)
-        except Exception as e:
-            return f"⚠️ Không thể lấy thông tin MMR: {e}"
+        except Exception:
+            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_today_message(self) -> str:
         """Generate response for !today command based on the current stream session."""
@@ -294,13 +323,11 @@ class OpenDotaClient:
             total = wins + losses
             wr = (wins / total * 100) if total > 0 else 0
 
-            # Format heroes summary
             hero_summary = []
             for h_name, stats in list(hero_counts.items())[:4]:
                 hero_summary.append(f"{h_name} ({stats['w']}W-{stats['l']}L)")
             hero_str = ", ".join(hero_summary)
 
-            # Latest match
             latest = session_matches[0]
             lat_radiant = latest.get("player_slot", 0) < 128
             lat_won = (latest.get("radiant_win") and lat_radiant) or (not latest.get("radiant_win") and not lat_radiant)
@@ -313,8 +340,8 @@ class OpenDotaClient:
                 f"Vừa xong: {lat_hero} ({lat_kda}) {lat_res} | "
                 f"Tướng: {hero_str}"
             )
-        except Exception as e:
-            return f"⚠️ Không thể lấy thông tin hôm nay: {e}"
+        except Exception:
+            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_last_match_message(self) -> str:
         """Generate response for !lastmatch command."""
@@ -337,8 +364,8 @@ class OpenDotaClient:
                 f"KDA: {kda} | Thời lượng: {duration_min}p | "
                 f"Dotabuff: https://www.dotabuff.com/matches/{match_id}"
             )
-        except Exception as e:
-            return f"⚠️ Không thể lấy chi tiết trận gần nhất: {e}"
+        except Exception:
+            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_profile_message(self) -> str:
         """Generate response for !dotabuff / !profile command."""
