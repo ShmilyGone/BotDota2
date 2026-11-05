@@ -323,11 +323,6 @@ class OpenDotaClient:
             total = wins + losses
             wr = (wins / total * 100) if total > 0 else 0
 
-            hero_summary = []
-            for h_name, stats in list(hero_counts.items())[:4]:
-                hero_summary.append(f"{h_name} ({stats['w']}W-{stats['l']}L)")
-            hero_str = ", ".join(hero_summary)
-
             latest = session_matches[0]
             lat_radiant = latest.get("player_slot", 0) < 128
             lat_won = (latest.get("radiant_win") and lat_radiant) or (not latest.get("radiant_win") and not lat_radiant)
@@ -335,11 +330,28 @@ class OpenDotaClient:
             lat_res = "Thắng ✅" if lat_won else "Thua ❌"
             lat_kda = f"{latest.get('kills', 0)}/{latest.get('deaths', 0)}/{latest.get('assists', 0)}"
 
-            return (
+            base_msg = (
                 f"🔥 Ca hôm nay ({now.strftime('%d/%m')}): {wins}W - {losses}L ({wr:.1f}%) | "
-                f"Vừa xong: {lat_hero} ({lat_kda}) {lat_res} | "
-                f"Tướng: {hero_str}"
+                f"Vừa xong: {lat_hero} ({lat_kda}) {lat_res} | Tướng: "
             )
+
+            # Dynamically include as many heroes as possible up to YouTube's 195-char limit
+            hero_items = [f"{h} ({s['w']}W-{s['l']}L)" for h, s in hero_counts.items()]
+            included_heroes = []
+            for item in hero_items:
+                test_str = ", ".join(included_heroes + [item])
+                if len(base_msg + test_str) <= 195:
+                    included_heroes.append(item)
+                else:
+                    rem = len(hero_items) - len(included_heroes)
+                    if rem > 0:
+                        included_heroes.append(f"+{rem} tướng")
+                    break
+
+            if not included_heroes:
+                included_heroes = hero_items[:3]
+
+            return base_msg + ", ".join(included_heroes)
         except Exception:
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
