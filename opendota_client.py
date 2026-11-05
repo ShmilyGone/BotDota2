@@ -394,40 +394,45 @@ class OpenDotaClient:
             return []
 
     def get_recent_matches(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
-        """Fetch recent matches: prioritizes STRATZ / Steam Web API, with OpenDota fallback."""
+        """Fetch recent matches: compares STRATZ, Steam Web API and OpenDota to pick the most up-to-date data."""
         now = time.time()
         if not force_refresh and self._matches_cache and (now - self._matches_cache_time < self.cache_ttl_matches):
             return self._matches_cache
 
         self.trigger_opendota_refresh()
 
-        # 1. Thử lấy từ STRATZ API trước (cập nhật siêu tốc)
+        candidates: List[List[Dict[str, Any]]] = []
+
+        # 1. Thử lấy từ STRATZ API
         stratz_matches = self._fetch_stratz_matches()
         if stratz_matches:
-            # Nếu STRATZ có dữ liệu mới hơn hoặc bằng OpenDota
-            self._matches_cache = stratz_matches
-            self._matches_cache_time = now
-            return stratz_matches
+            candidates.append(stratz_matches)
 
         # 2. Thử lấy từ Steam Web API
         steam_matches = self._fetch_steam_matches()
         if steam_matches:
-            self._matches_cache = steam_matches
-            self._matches_cache_time = now
-            return steam_matches
+            candidates.append(steam_matches)
 
-        # 3. Mặc định fallback về OpenDota
+        # 3. Lấy từ OpenDota
         try:
-            data = self._api_get(f"players/{self.account_id}/matches", params={"limit": 25})
-            self._matches_cache = data
-            self._matches_cache_time = now
-            return data
+            opendota_matches = self._api_get(f"players/{self.account_id}/matches", params={"limit": 25})
+            if opendota_matches:
+                candidates.append(opendota_matches)
         except Exception as e:
-            # If server dropped connection, return existing cache instead of crashing
-            if self._matches_cache:
-                logger.warning(f"Lỗi mạng OpenDota, dùng dữ liệu trận đấu đã lưu trước đó: {e}")
-                return self._matches_cache
-            raise e
+            logger.warning(f"Lỗi khi lấy từ OpenDota: {e}")
+
+        # Chọn nguồn có trận đấu mới nhất (start_time hoặc match_id cao nhất)
+        if candidates:
+            best_source = max(candidates, key=lambda match_list: match_list[0].get("match_id", 0) if match_list else 0)
+            self._matches_cache = best_source
+            self._matches_cache_time = now
+            return best_source
+
+        # Nếu không có nguồn nào trả về, dùng cache cũ
+        if self._matches_cache:
+            return self._matches_cache
+
+        return []
 
     def get_session_matches(self) -> List[Dict[str, Any]]:
         """
