@@ -88,3 +88,19 @@ Kiểm tra dữ liệu OpenDota trực tiếp trên Terminal:
    ```
 
 3. Lần đầu chạy, trình duyệt sẽ mở để bạn đăng nhập tài khoản bot và cấp quyền. Các lần tiếp theo bot sẽ tự động chạy ngầm.
+
+
+---
+
+## ⚡ Kiến trúc Hybrid siêu tiết kiệm Quota YouTube API
+
+YouTube Data API v3 cấp miễn phí **10.000 units/ngày**. 
+Nếu dùng API chính thống để liên tục quét đọc tin nhắn (`liveChatMessages.list`), mỗi lần quét tốn **5 units** $\rightarrow$ Sau 2 tiếng stream liên tục là cạn sạch 10.000 units!
+
+**Dự án này đã được tối ưu toàn diện bằng kiến trúc Hybrid:**
+1. **Lắng nghe tin nhắn (0 Quota API):** 
+   * Sử dụng thư viện `pytchat` để đọc luồng chat trực tiếp từ stream với **chi phí 0 Quota**.
+   * Bot có thể cắm máy lắng nghe chat 24/7/365 ngày mà không tốn một đơn vị Quota nào của Google.
+2. **Gửi tin nhắn trả lời (20 Quota units/tin):** 
+   * Chỉ khi có người xem gõ lệnh (`!today`, `!rank`, `!mmr`...), bot mới dùng API OAuth để gửi tin nhắn.
+   * Với 10.000 units miễn phí hàng ngày, bot có thể **trả lời tới 500 tin nhắn/ngày** mà không bao giờ lo bị cạn Quota vì quét đọc tin nhắn ngầm!
