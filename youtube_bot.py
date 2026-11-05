@@ -5,17 +5,10 @@ import re
 import urllib.request
 import logging
 from typing import Optional, Set, Dict
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 import pytchat
 
 from opendota_client import OpenDotaClient
-
-# YouTube OAuth scopes
-SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
+from account_pool import AccountPool
 
 logger = logging.getLogger("YouTubeBot")
 
@@ -67,114 +60,29 @@ class YouTubeLiveChatBot:
     def __init__(
         self,
         dota_client: OpenDotaClient,
-        client_secrets_file: str = "client_secret.json",
-        token_file: str = "token.json",
+        account_pool: Optional[AccountPool] = None,
         target_channel: Optional[str] = None,
         video_id: Optional[str] = None,
         command_cooldown: float = 8.0,
         global_cooldown: float = 3.0
     ):
         self.dota = dota_client
-        self.client_secrets_file = client_secrets_file
-        self.token_file = token_file
+        self.account_pool = account_pool or AccountPool()
         self.target_channel = target_channel
         self.video_id = extract_video_id(video_id) if video_id else None
         self.command_cooldown = command_cooldown
         self.global_cooldown = global_cooldown
         
-        self.youtube = None
         self.live_chat_id: Optional[str] = None
         self.current_video_id: Optional[str] = None
-        self.bot_channel_id: Optional[str] = None
-        
-        # Cache video_id -> live_chat_id so we only fetch once (1 quota unit per stream)
-        self.chat_id_cache: Dict[str, str] = {}
         
         # Cooldown trackers
         self.last_command_time = {}
         self.last_global_reply_time = 0.0
-        self.seen_message_ids: Set[str] = set()
 
-    def authenticate(self):
-        """Perform OAuth 2.0 authentication and build YouTube API client."""
-        creds = None
-        if os.path.exists(self.token_file):
-            try:
-                creds = Credentials.from_authorized_user_file(self.token_file, SCOPES)
-            except Exception as e:
-                logger.warning(f"Không thể đọc {self.token_file}: {e}. Sẽ xác thực lại.")
-                creds = None
-
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                logger.info("Token đã hết hạn, đang làm mới (refresh token)...")
-                creds.refresh(Request())
-            else:
-                if not os.path.exists(self.client_secrets_file):
-                    raise FileNotFoundError(
-                        f"Không tìm thấy file '{self.client_secrets_file}'.\n"
-                        "Vui lòng tạo Google Cloud Console OAuth 2.0 Client Credentials "
-                        "và tải về đặt tên là 'client_secret.json'."
-                    )
-                logger.info("Mở trình duyệt để xác thực tài khoản Google dùng làm bot...")
-                flow = InstalledAppFlow.from_client_secrets_file(self.client_secrets_file, SCOPES)
-                creds = flow.run_local_server(port=0)
-
-            with open(self.token_file, "w", encoding="utf-8") as token:
-                token.write(creds.to_json())
-            logger.info(f"Đã lưu thông tin xác thực vào '{self.token_file}'.")
-
-        self.youtube = build("youtube", "v3", credentials=creds)
-
-        try:
-            channels_resp = self.youtube.channels().list(part="id,snippet", mine=True).execute()
-            if channels_resp.get("items"):
-                my_channel = channels_resp["items"][0]
-                self.bot_channel_id = my_channel["id"]
-                title = my_channel.get("snippet", {}).get("title", "Unknown")
-                logger.info(f"Đã xác thực thành công tài khoản Bot: '{title}' (Channel ID: {self.bot_channel_id})")
-            else:
-                logger.warning("Tài khoản Google này chưa tạo kênh YouTube! Hãy vào youtube.com bấm 'Tạo kênh' để có thể nhắn tin vào Live Chat.")
-        except HttpError as e:
-            if "quotaExceeded" in str(e):
-                logger.warning("⚠️ Quota tài khoản YouTube hôm nay đang hết. Bot vẫn đọc được chat bằng pytchat (0 Quota)!")
-            else:
-                logger.warning(f"Không thể lấy thông tin kênh bot: {e}")
-        except Exception as e:
-            logger.warning(f"Không thể lấy thông tin kênh bot: {e}")
-
-    def fetch_live_chat_id(self, target_vid: str) -> Optional[str]:
-        """Fetch activeLiveChatId for a video once and cache it (costs only 1 API unit per stream)."""
-        if target_vid in self.chat_id_cache:
-            return self.chat_id_cache[target_vid]
-
-        try:
-            resp = self.youtube.videos().list(
-                part="liveStreamingDetails,snippet",
-                id=target_vid
-            ).execute()
-            items = resp.get("items", [])
-            if items:
-                streaming_details = items[0].get("liveStreamingDetails")
-                snippet = items[0].get("snippet", {})
-                live_broadcast_content = snippet.get("liveBroadcastContent", "none")
-                
-                if streaming_details and live_broadcast_content == "live":
-                    chat_id = streaming_details.get("activeLiveChatId")
-                    if chat_id:
-                        title = snippet.get("title", "")
-                        channel_title = snippet.get("channelTitle", "")
-                        logger.info(f"✅ Đã kết nối gửi tin nhắn vào Live Chat [{channel_title}]: '{title}' (Chat ID: {chat_id})")
-                        self.chat_id_cache[target_vid] = chat_id
-                        return chat_id
-        except HttpError as e:
-            if "quotaExceeded" in str(e):
-                logger.error("❌ Quota YouTube API hôm nay đã hết! Bot không thể gửi tin nhắn phản hồi cho đến khi Quota reset.")
-            else:
-                logger.warning(f"Lỗi khi lấy liveChatId cho video {target_vid}: {e}")
-        except Exception as e:
-            logger.warning(f"Lỗi kiểm tra video {target_vid}: {e}")
-        return None
+    def authenticate(self, interactive: bool = False):
+        """Authenticate all accounts in the pool."""
+        self.account_pool.authenticate_all(interactive=interactive)
 
     def resolve_video_id(self) -> Optional[str]:
         """Find the active video ID for target channel without using API quota."""
@@ -184,38 +92,16 @@ class YouTubeLiveChatBot:
             return resolve_channel_live_video(self.target_channel)
         return None
 
-    def send_chat_message(self, text: str):
-        """Send a message to YouTube Live Chat (costs 20 API units)."""
+    def send_chat_message(self, text: str) -> bool:
+        """Send a message to YouTube Live Chat using account pool rotation."""
         if not self.live_chat_id:
-            logger.warning("Chưa có live_chat_id (có thể do Quota API đã hết), không thể gửi tin nhắn.")
-            return
+            logger.warning("Chưa có live_chat_id, không thể gửi tin nhắn.")
+            return False
 
-        if len(text) > 200:
-            text = text[:197] + "..."
-
-        try:
-            self.youtube.liveChatMessages().insert(
-                part="snippet",
-                body={
-                    "snippet": {
-                        "liveChatId": self.live_chat_id,
-                        "type": "textMessageEvent",
-                        "textMessageDetails": {
-                            "messageText": text
-                        }
-                    }
-                }
-            ).execute()
+        success = self.account_pool.send_chat_message(self.live_chat_id, text)
+        if success:
             self.last_global_reply_time = time.time()
-            logger.info(f"🤖 Đã trả lời chat: {text}")
-        except HttpError as e:
-            if "quotaExceeded" in str(e):
-                logger.error("❌ Quota YouTube API đã chạm giới hạn 10.000 units hôm nay. Tin nhắn không gửi được.")
-            elif "liveChatEnded" in str(e):
-                logger.warning("Buổi livestream đã kết thúc.")
-                self.live_chat_id = None
-            else:
-                logger.error(f"Lỗi khi gửi tin nhắn chat: {e}")
+        return success
 
     def handle_command(self, command: str, author_name: str) -> Optional[str]:
         """Process chat command and return response string if applicable."""
@@ -252,14 +138,18 @@ class YouTubeLiveChatBot:
 
     def start_polling(self):
         """
-        Main loop using HYBRID architecture:
+        Main loop using HYBRID + ACCOUNT POOL architecture:
         - Chat Reading: via `pytchat` (0 Quota cost, runs 24/7 forever!)
-        - Chat Writing: via official YouTube API (only 20 Quota cost per response)
+        - Chat Writing: via official YouTube API with Account Rotation & Failover
         """
-        if not self.youtube:
-            self.authenticate()
+        self.authenticate(interactive=False)
 
-        logger.info(f"🚀 Bot Dota 2 đang ở chế độ HYBRID SIÊU TIẾT KIỆM QUOTA cho kênh: {self.target_channel or 'kênh của bạn'}!")
+        ready = self.account_pool.get_ready_accounts()
+        if not ready:
+            logger.warning("⚠️ Không có tài khoản nào trong pool có Quota khả dụng hoặc chưa xác thực!")
+            logger.info("Chạy 'python auth_pool.py' để xác thực các tài khoản mới nếu chưa tạo token.")
+
+        logger.info(f"🚀 Bot Dota 2 đang ở chế độ HYBRID + XOAY ACCOUNT POOL cho kênh: {self.target_channel or 'kênh của bạn'}!")
 
         while True:
             try:
@@ -270,12 +160,12 @@ class YouTubeLiveChatBot:
                     continue
 
                 self.current_video_id = vid
-                logger.info(f"🎯 Đã phát hiện buổi stream: https://www.youtube.com/watch?v=s (ID: {vid})")
+                logger.info(f"🎯 Đã phát hiện buổi stream: https://www.youtube.com/watch?v={vid} (ID: {vid})")
 
-                # Lấy live_chat_id để chuẩn bị gửi tin nhắn (chỉ tốn 1 unit và được lưu cache)
-                self.live_chat_id = self.fetch_live_chat_id(vid)
+                # Lấy live_chat_id thông qua pool tài khoản (chỉ tốn 1 unit và được lưu cache)
+                self.live_chat_id = self.account_pool.fetch_live_chat_id(vid)
 
-                logger.info(f"📡 Đang kết nối lắng nghe chat qua pytchat (0 Quota API)...")
+                logger.info("📡 Đang kết nối lắng nghe chat qua pytchat (0 Quota API)...")
                 chat = pytchat.create(video_id=vid)
 
                 if not chat.is_alive():
@@ -292,8 +182,8 @@ class YouTubeLiveChatBot:
                             author_name = getattr(c.author, "name", "Viewer")
                             author_channel_id = getattr(c.author, "channelId", "")
 
-                            # Bỏ qua tin nhắn từ chính tài khoản Bot
-                            if self.bot_channel_id and author_channel_id == self.bot_channel_id:
+                            # Bỏ qua tin nhắn từ bất kỳ tài khoản Bot nào trong pool
+                            if author_channel_id and author_channel_id in self.account_pool.all_bot_channel_ids:
                                 continue
 
                             msg_text = getattr(c, "message", "").strip()

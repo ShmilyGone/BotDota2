@@ -13,6 +13,7 @@ if sys.platform.startswith("win"):
         pass
 
 from opendota_client import OpenDotaClient
+from account_pool import AccountPool
 from youtube_bot import YouTubeLiveChatBot
 
 logging.basicConfig(
@@ -69,6 +70,8 @@ def main():
 
     parser = argparse.ArgumentParser(description="YouTube Live Chat Bot cho Dota 2 Streamer")
     parser.add_argument("--test-dota", action="store_true", help="Chạy chế độ test lệnh Dota 2 trên Terminal (không cần YouTube)")
+    parser.add_argument("--status", action="store_true", help="Kiểm tra trạng thái các tài khoản trong Account Pool")
+    parser.add_argument("--auth-accounts", action="store_true", help="Xác thực OAuth 2.0 cho các tài khoản mới trong Account Pool")
     parser.add_argument("--account-id", type=str, default=os.getenv("DOTA_ACCOUNT_ID", "196931374"), help="Dota 2 Steam Account ID (mặc định: 196931374)")
     parser.add_argument("--channel", type=str, default=os.getenv("TARGET_CHANNEL", "@DHDota2"), help="Kênh livestream mục tiêu (vd: @DHDota2 hoặc link kênh)")
     parser.add_argument("--video-id", type=str, default=os.getenv("YOUTUBE_VIDEO_ID", None), help="ID của video livestream YouTube (vd: IuM8Nhptdy4)")
@@ -76,6 +79,18 @@ def main():
     parser.add_argument("--cooldown", type=float, default=float(os.getenv("COMMAND_COOLDOWN", "8.0")), help="Thời gian hồi lệnh (giây)")
     
     args = parser.parse_args()
+
+    pool = AccountPool()
+
+    if args.status:
+        pool.authenticate_all(interactive=False)
+        pool.print_status()
+        return
+
+    if args.auth_accounts:
+        import auth_pool
+        auth_pool.main()
+        return
 
     api_key = os.getenv("OPENDOTA_API_KEY")
     steam_api_key = os.getenv("STEAM_API_KEY")
@@ -97,25 +112,23 @@ def main():
         run_terminal_test(dota_client)
         return
 
-    # Check for credentials before running YouTube bot
-    client_secret_file = os.getenv("CLIENT_SECRET_FILE", "client_secret.json")
-    if not os.path.exists(client_secret_file):
+    if not pool.accounts:
         logger.error("=" * 65)
-        logger.error(f"❌ KHÔNG TÌM THẤY FILE: '{client_secret_file}'")
-        logger.error("Để bot có thể đọc và gửi tin nhắn lên YouTube Live Chat, bạn cần:")
-        logger.error("1. Vào Google Cloud Console: https://console.cloud.google.com/")
-        logger.error("2. Bật 'YouTube Data API v3'.")
-        logger.error("3. Tạo OAuth 2.0 Client ID (chọn Application type: Desktop App).")
-        logger.error("4. Tải file credentials về, đổi tên thành 'client_secret.json' và đặt vào thư mục này.")
-        logger.error("")
-        logger.error("💡 Bạn có thể thử nghiệm các lệnh Dota 2 ngay bây giờ bằng lệnh:")
-        logger.error("   python main.py --test-dota")
+        logger.error("❌ KHÔNG TÌM THẤY BẤT KỲ FILE CLIENT_SECRET NÀO!")
+        logger.error("Vui lòng tải file OAuth 2.0 Credentials từ Google Cloud Console về thư mục này.")
         logger.error("=" * 65)
         sys.exit(1)
 
+    # Check unauthenticated accounts
+    unauth = [a for a in pool.accounts if not a.is_authenticated()]
+    if unauth:
+        logger.info(f"💡 Phát hiện {len(unauth)} tài khoản chưa tạo token: {[a.project_id for a in unauth]}")
+        logger.info("Bạn có thể chạy lệnh sau bất kỳ lúc nào để đăng nhập bổ sung:")
+        logger.info("   python auth_pool.py")
+
     bot = YouTubeLiveChatBot(
         dota_client=dota_client,
-        client_secrets_file=client_secret_file,
+        account_pool=pool,
         target_channel=args.channel,
         video_id=args.video_id,
         command_cooldown=args.cooldown
