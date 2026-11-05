@@ -70,7 +70,8 @@ def main():
     parser = argparse.ArgumentParser(description="YouTube Live Chat Bot cho Dota 2 Streamer")
     parser.add_argument("--test-dota", action="store_true", help="Chạy chế độ test lệnh Dota 2 trên Terminal (không cần YouTube)")
     parser.add_argument("--account-id", type=str, default=os.getenv("DOTA_ACCOUNT_ID", "196931374"), help="Dota 2 Steam Account ID (mặc định: 196931374)")
-    parser.add_argument("--video-id", type=str, default=os.getenv("YOUTUBE_VIDEO_ID", None), help="ID của video livestream YouTube (vd: dQw4w9WgXcQ)")
+    parser.add_argument("--channel", type=str, default=os.getenv("TARGET_CHANNEL", "@DHDota2"), help="Kênh livestream mục tiêu (vd: @DHDota2 hoặc link kênh)")
+    parser.add_argument("--video-id", type=str, default=os.getenv("YOUTUBE_VIDEO_ID", None), help="ID của video livestream YouTube (vd: IuM8Nhptdy4)")
     parser.add_argument("--manual-mmr", type=str, default=os.getenv("MANUAL_MMR", None), help="MMR thực tế của streamer nếu muốn hiển thị cụ thể (vd: 10500)")
     parser.add_argument("--cooldown", type=float, default=float(os.getenv("COMMAND_COOLDOWN", "8.0")), help="Thời gian hồi lệnh (giây)")
     
@@ -109,6 +110,7 @@ def main():
     bot = YouTubeLiveChatBot(
         dota_client=dota_client,
         client_secrets_file=client_secret_file,
+        target_channel=args.channel,
         video_id=args.video_id,
         command_cooldown=args.cooldown
     )
