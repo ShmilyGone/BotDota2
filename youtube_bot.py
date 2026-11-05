@@ -237,11 +237,11 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_rank_message()
         elif cmd in ["!mmr"]:
             reply = self.dota.get_mmr_message()
-        elif cmd in ["!lastmatch", "!last"]:
+        elif cmd in ["!lastmatch", "!last", "!tran"]:
             reply = self.dota.get_last_match_message()
-        elif cmd in ["!dotabuff", "!profile", "!opendota"]:
+        elif cmd in ["!dotabuff", "!profile", "!opendota", "!player", "!players", "!thongtin"]:
             reply = self.dota.get_profile_message()
-        elif cmd in ["!help", "!lenh", "!bot"]:
+        elif cmd in ["!help", "!lenh", "!bot", "!commands"]:
             reply = "📜 Lệnh có sẵn: !today (kết quả ca stream hôm nay), !rank (rank hiện tại), !mmr (thông tin MMR), !lastmatch (trận vừa xong), !profile (link Dotabuff)."
 
         if reply:
