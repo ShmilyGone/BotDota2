@@ -2,6 +2,7 @@ import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List
 import requests
+import threading
 
 TIER_NAMES = {
     1: "Herald",
@@ -15,14 +16,25 @@ TIER_NAMES = {
 }
 
 class OpenDotaClient:
-    def __init__(self, account_id: str = "196931374", api_key: Optional[str] = None, tz_offset_hours: int = 7, manual_mmr: Optional[str] = None):
+    def __init__(
+        self,
+        account_id: str = "196931374",
+        api_key: Optional[str] = None,
+        steam_api_key: Optional[str] = None,
+        tz_offset_hours: int = 7,
+        manual_mmr: Optional[str] = None,
+        session_gap_hours: float = 5.0
+    ):
         self.account_id = str(account_id)
         self.api_key = api_key
+        self.steam_api_key = steam_api_key
         self.tz = timezone(timedelta(hours=tz_offset_hours))
         self.manual_mmr = manual_mmr
+        self.session_gap_hours = session_gap_hours
+        
         self.session = requests.Session()
         self.session.headers.update({
-            "User-Agent": "Dota2StreamBot/1.0 (OpenDota Integration)"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Dota2StreamBot/1.2"
         })
         
         # In-memory caches
@@ -31,8 +43,25 @@ class OpenDotaClient:
         self._profile_cache_time = 0.0
         self._matches_cache: Optional[List[Dict[str, Any]]] = None
         self._matches_cache_time = 0.0
-        self.cache_ttl_profile = 60.0  # 1 minute
-        self.cache_ttl_matches = 30.0  # 30 seconds
+        self.cache_ttl_profile = 60.0
+        self.cache_ttl_matches = 15.0  # Check fresh matches every 15s
+        
+        self._last_refresh_time = 0.0
+
+    def trigger_opendota_refresh(self):
+        """Asynchronously notify OpenDota to sync recent matches from Valve."""
+        now = time.time()
+        if now - self._last_refresh_time > 120.0:  # Rate limit refresh request: once every 2 mins
+            self._last_refresh_time = now
+            def _refresh():
+                try:
+                    self.session.post(
+                        f"https://api.opendota.com/api/players/{self.account_id}/refresh",
+                        timeout=5
+                    )
+                except Exception:
+                    pass
+            threading.Thread(target=_refresh, daemon=True).start()
 
     def _api_get(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Any:
         url = f"https://api.opendota.com/api/{endpoint.lstrip('/')}"
@@ -50,12 +79,12 @@ class OpenDotaClient:
                 data = self._api_get("constants/heroes")
                 for hid_str, hero_info in data.items():
                     self._heroes_cache[int(hid_str)] = hero_info.get("localized_name", f"Hero #{hid_str}")
-            except Exception as e:
+            except Exception:
                 return f"Hero #{hero_id}"
         return self._heroes_cache.get(hero_id, f"Hero #{hero_id}")
 
     def get_player_data(self, force_refresh: bool = False) -> Dict[str, Any]:
-        """Fetch general player info (name, rank_tier, leaderboard_rank, mmr_estimate)."""
+        """Fetch player profile, rank and MMR estimates."""
         now = time.time()
         if not force_refresh and self._profile_cache and (now - self._profile_cache_time < self.cache_ttl_profile):
             return self._profile_cache
@@ -65,16 +94,113 @@ class OpenDotaClient:
         self._profile_cache_time = now
         return data
 
-    def get_recent_matches(self, force_refresh: bool = False, days: int = 7) -> List[Dict[str, Any]]:
-        """Fetch recent matches played by the user."""
+    def _fetch_steam_matches(self) -> List[Dict[str, Any]]:
+        """Fetch real-time matches directly from Valve Steam Web API if STEAM_API_KEY is provided."""
+        if not self.steam_api_key:
+            return []
+        try:
+            url = "https://api.steampowered.com/IDOTA2Match_570/GetMatchHistory/v1/"
+            params = {
+                "key": self.steam_api_key,
+                "account_id": self.account_id,
+                "matches_requested": 10
+            }
+            resp = self.session.get(url, params=params, timeout=8)
+            if resp.status_code != 200:
+                return []
+            data = resp.json().get("result", {})
+            raw_matches = data.get("matches", [])
+            
+            parsed_matches = []
+            for rm in raw_matches:
+                match_id = rm.get("match_id")
+                start_time = rm.get("start_time")
+                
+                # Find the player inside match
+                player_entry = next((p for p in rm.get("players", []) if str(p.get("account_id")) == self.account_id), None)
+                if not player_entry:
+                    continue
+                
+                hero_id = player_entry.get("hero_id")
+                player_slot = player_entry.get("player_slot", 0)
+                
+                # Fetch match details for win/loss and kda
+                det_url = "https://api.steampowered.com/IDOTA2Match_570/GetMatchDetails/v1/"
+                det_resp = self.session.get(det_url, params={"key": self.steam_api_key, "match_id": match_id}, timeout=6)
+                if det_resp.status_code == 200:
+                    d_data = det_resp.json().get("result", {})
+                    radiant_win = d_data.get("radiant_win", False)
+                    duration = d_data.get("duration", 0)
+                    p_detail = next((p for p in d_data.get("players", []) if str(p.get("account_id")) == self.account_id), {})
+                    kills = p_detail.get("kills", 0)
+                    deaths = p_detail.get("deaths", 0)
+                    assists = p_detail.get("assists", 0)
+                else:
+                    radiant_win = False
+                    duration = 0
+                    kills, deaths, assists = 0, 0, 0
+
+                parsed_matches.append({
+                    "match_id": match_id,
+                    "player_slot": player_slot,
+                    "radiant_win": radiant_win,
+                    "duration": duration,
+                    "hero_id": hero_id,
+                    "start_time": start_time,
+                    "kills": kills,
+                    "deaths": deaths,
+                    "assists": assists
+                })
+            return parsed_matches
+        except Exception:
+            return []
+
+    def get_recent_matches(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
+        """Fetch recent matches, combining Steam Web API (real-time) with OpenDota."""
         now = time.time()
         if not force_refresh and self._matches_cache and (now - self._matches_cache_time < self.cache_ttl_matches):
             return self._matches_cache
 
-        data = self._api_get(f"players/{self.account_id}/matches", params={"date": days})
+        # Asynchronously ask OpenDota to refresh so its database catches up
+        self.trigger_opendota_refresh()
+
+        # Try Steam API first for 0s latency
+        steam_matches = self._fetch_steam_matches()
+        if steam_matches:
+            self._matches_cache = steam_matches
+            self._matches_cache_time = now
+            return steam_matches
+
+        # Fallback to OpenDota
+        data = self._api_get(f"players/{self.account_id}/matches", params={"limit": 25})
         self._matches_cache = data
         self._matches_cache_time = now
         return data
+
+    def get_session_matches(self) -> List[Dict[str, Any]]:
+        """
+        Smart Session Clustering:
+        Collects matches played in the current streaming session.
+        If there is a gap of > session_gap_hours (e.g. 5 hours) between matches,
+        matches prior to that gap belong to a previous session/day and are excluded.
+        """
+        matches = self.get_recent_matches()
+        if not matches:
+            return []
+
+        session_matches = []
+        for m in matches:
+            if not session_matches:
+                session_matches.append(m)
+            else:
+                prev_m = session_matches[-1]
+                gap_hours = (prev_m.get("start_time", 0) - m.get("start_time", 0)) / 3600.0
+                if gap_hours <= self.session_gap_hours:
+                    session_matches.append(m)
+                else:
+                    # Found a large gap (e.g. sleep/break), stop adding older games
+                    break
+        return session_matches
 
     def format_rank(self, rank_tier: Optional[int], leaderboard_rank: Optional[int]) -> str:
         """Parse rank_tier and leaderboard_rank into human-readable string."""
@@ -119,10 +245,8 @@ class OpenDotaClient:
             mmr_est = player.get("mmr_estimate", {}).get("estimate")
 
             rank_str = self.format_rank(rank_tier, leaderboard_rank)
-
             parts = [f"📊 {name} | Rank: {rank_str}"]
             
-            # If manual MMR is configured by the streamer, show it
             if self.manual_mmr:
                 parts.append(f"MMR thực tế: ~{self.manual_mmr}")
             elif mmr_est:
@@ -137,43 +261,29 @@ class OpenDotaClient:
             return f"⚠️ Không thể lấy thông tin MMR: {e}"
 
     def get_today_message(self) -> str:
-        """Generate response for !today command."""
+        """Generate response for !today command based on the current stream session."""
         try:
-            matches = self.get_recent_matches()
+            session_matches = self.get_session_matches()
             player = self.get_player_data()
             name = player.get("profile", {}).get("personaname", "Streamer")
-
             now = datetime.now(self.tz)
-            start_of_today = datetime(now.year, now.month, now.day, tzinfo=self.tz)
-            start_ts = int(start_of_today.timestamp())
 
-            today_matches = [m for m in matches if m.get("start_time", 0) >= start_ts]
-
-            if not today_matches:
-                # Find the most recent match for context
-                if matches:
-                    last_m = matches[0]
-                    is_radiant = last_m["player_slot"] < 128
-                    won = (last_m["radiant_win"] and is_radiant) or (not last_m["radiant_win"] and not is_radiant)
-                    hero_name = self.get_hero_name(last_m["hero_id"])
-                    res_text = "Thắng" if won else "Thua"
-                    kda = f"{last_m['kills']}/{last_m['deaths']}/{last_m['assists']}"
-                    return f"📅 Hôm nay {name} chưa đánh trận nào! Trận gần nhất: {hero_name} ({kda} - {res_text})."
-                return f"📅 Hôm nay {name} chưa có trận đấu nào được ghi nhận trên Dota 2."
+            if not session_matches:
+                return f"📅 Ca stream hôm nay ({now.strftime('%d/%m')}): {name} chưa có trận đấu nào được ghi nhận."
 
             wins = 0
             losses = 0
             hero_counts: Dict[str, Dict[str, int]] = {}
 
-            for m in today_matches:
-                is_radiant = m["player_slot"] < 128
-                won = (m["radiant_win"] and is_radiant) or (not m["radiant_win"] and not is_radiant)
+            for m in session_matches:
+                is_radiant = m.get("player_slot", 0) < 128
+                won = (m.get("radiant_win") and is_radiant) or (not m.get("radiant_win") and not is_radiant)
                 if won:
                     wins += 1
                 else:
                     losses += 1
                 
-                h_name = self.get_hero_name(m["hero_id"])
+                h_name = self.get_hero_name(m.get("hero_id", 0))
                 if h_name not in hero_counts:
                     hero_counts[h_name] = {"w": 0, "l": 0}
                 if won:
@@ -184,23 +294,23 @@ class OpenDotaClient:
             total = wins + losses
             wr = (wins / total * 100) if total > 0 else 0
 
-            # Format heroes played summary
+            # Format heroes summary
             hero_summary = []
             for h_name, stats in list(hero_counts.items())[:4]:
                 hero_summary.append(f"{h_name} ({stats['w']}W-{stats['l']}L)")
             hero_str = ", ".join(hero_summary)
 
-            # Latest match result
-            latest = today_matches[0]
-            lat_radiant = latest["player_slot"] < 128
-            lat_won = (latest["radiant_win"] and lat_radiant) or (not latest["radiant_win"] and not lat_radiant)
-            lat_hero = self.get_hero_name(latest["hero_id"])
+            # Latest match
+            latest = session_matches[0]
+            lat_radiant = latest.get("player_slot", 0) < 128
+            lat_won = (latest.get("radiant_win") and lat_radiant) or (not latest.get("radiant_win") and not lat_radiant)
+            lat_hero = self.get_hero_name(latest.get("hero_id", 0))
             lat_res = "Thắng ✅" if lat_won else "Thua ❌"
-            lat_kda = f"{latest['kills']}/{latest['deaths']}/{latest['assists']}"
+            lat_kda = f"{latest.get('kills', 0)}/{latest.get('deaths', 0)}/{latest.get('assists', 0)}"
 
             return (
-                f"🔥 Hôm nay ({now.strftime('%d/%m')}): {wins}W - {losses}L ({wr:.1f}%) | "
-                f"Trận vừa xong: {lat_hero} ({lat_kda}) {lat_res} | "
+                f"🔥 Ca hôm nay ({now.strftime('%d/%m')}): {wins}W - {losses}L ({wr:.1f}%) | "
+                f"Vừa xong: {lat_hero} ({lat_kda}) {lat_res} | "
                 f"Tướng: {hero_str}"
             )
         except Exception as e:
@@ -215,10 +325,10 @@ class OpenDotaClient:
 
             m = matches[0]
             match_id = m.get("match_id")
-            is_radiant = m["player_slot"] < 128
-            won = (m["radiant_win"] and is_radiant) or (not m["radiant_win"] and not is_radiant)
-            hero_name = self.get_hero_name(m["hero_id"])
-            kda = f"{m['kills']}/{m['deaths']}/{m['assists']}"
+            is_radiant = m.get("player_slot", 0) < 128
+            won = (m.get("radiant_win") and is_radiant) or (not m.get("radiant_win") and not is_radiant)
+            hero_name = self.get_hero_name(m.get("hero_id", 0))
+            kda = f"{m.get('kills', 0)}/{m.get('deaths', 0)}/{m.get('assists', 0)}"
             res_str = "Chiến Thắng 🏆" if won else "Thất Bại 💀"
             duration_min = m.get("duration", 0) // 60
 

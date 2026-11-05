@@ -28,7 +28,7 @@ def extract_video_id(url_or_id: str) -> str:
 
 def resolve_channel_live_video(target_channel: str) -> Optional[str]:
     """
-    Attempt to find the active live video ID for a channel handle or URL without consuming API quota.
+    Find active live video ID for a channel handle or URL.
     Supports handles like '@DHDota2' or full URLs 'https://www.youtube.com/@DHDota2'.
     """
     target = target_channel.strip()
@@ -44,16 +44,20 @@ def resolve_channel_live_video(target_channel: str) -> Optional[str]:
     try:
         req = urllib.request.Request(
             url,
-            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         )
         resp = urllib.request.urlopen(req, timeout=10)
         html = resp.read().decode("utf-8", errors="ignore")
 
+        # 1. Check canonical link
         canonical = re.findall(r'<link rel="canonical" href="https://www\.youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})">', html)
-        is_live = '"isLive":true' in html or '"isLiveNow":true' in html or 'liveStreamability' in html
-
-        if canonical and is_live:
+        if canonical:
             return canonical[0]
+
+        # 2. Check videoId in initialData
+        vids = re.findall(r'"videoId":"([a-zA-Z0-9_-]{11})"', html)
+        if vids:
+            return vids[0]
     except Exception as e:
         logger.warning(f"Không thể quét trực tiếp link '{url}': {e}")
     return None
@@ -112,14 +116,12 @@ class YouTubeLiveChatBot:
                 flow = InstalledAppFlow.from_client_secrets_file(self.client_secrets_file, SCOPES)
                 creds = flow.run_local_server(port=0)
 
-            # Save credentials for next run
             with open(self.token_file, "w", encoding="utf-8") as token:
                 token.write(creds.to_json())
             logger.info(f"Đã lưu thông tin xác thực vào '{self.token_file}'.")
 
         self.youtube = build("youtube", "v3", credentials=creds)
 
-        # Get the authenticated user's channel ID to ignore own messages
         try:
             channels_resp = self.youtube.channels().list(part="id,snippet", mine=True).execute()
             if channels_resp.get("items"):
@@ -132,65 +134,57 @@ class YouTubeLiveChatBot:
         except Exception as e:
             logger.warning(f"Không thể lấy thông tin kênh bot: {e}")
 
-    def resolve_live_chat_id(self) -> str:
-        """Find the active liveChatId from video_id, target_channel, or mine=True."""
+    def resolve_live_chat_id(self) -> Optional[str]:
+        """Find active liveChatId. Returns None if streamer is currently offline."""
         target_vid = self.video_id
 
-        # 1. If no video_id specified, try discovering from target_channel
+        # 1. If no explicit video_id, try discovering from target_channel
         if not target_vid and self.target_channel:
-            logger.info(f"Đang tự động quét livestream của kênh: {self.target_channel}...")
             target_vid = resolve_channel_live_video(self.target_channel)
-            if target_vid:
-                logger.info(f"🎯 Đã phát hiện buổi stream đang phát! Video ID: {target_vid}")
-            else:
-                logger.warning(f"Chưa tìm thấy buổi stream đang phát trực tiếp trên kênh {self.target_channel}.")
 
-        # 2. If video_id is known (either passed or discovered)
+        # 2. Check if discovered video is currently live with active chat
         if target_vid:
-            logger.info(f"Đang lấy thông tin Live Chat từ Video ID: {target_vid}...")
-            resp = self.youtube.videos().list(
-                part="liveStreamingDetails,snippet",
-                id=target_vid
-            ).execute()
-            items = resp.get("items", [])
-            if not items:
-                raise ValueError(f"Không tìm thấy video với ID: {target_vid}")
-            
-            streaming_details = items[0].get("liveStreamingDetails")
-            if not streaming_details:
-                raise ValueError(f"Video {target_vid} không phải là một luồng phát trực tiếp (Live Stream).")
-            
-            chat_id = streaming_details.get("activeLiveChatId")
-            if not chat_id:
-                raise ValueError(f"Không tìm thấy live chat đang hoạt động trên video {target_vid}. Có thể luồng live đã kết thúc hoặc chat bị tắt.")
-            
-            title = items[0].get("snippet", {}).get("title", "")
-            channel_title = items[0].get("snippet", {}).get("channelTitle", "")
-            logger.info(f"✅ Đã kết nối Live Chat luồng của [{channel_title}]: '{title}' (Chat ID: {chat_id})")
-            self.current_video_id = target_vid
-            return chat_id
+            try:
+                resp = self.youtube.videos().list(
+                    part="liveStreamingDetails,snippet",
+                    id=target_vid
+                ).execute()
+                items = resp.get("items", [])
+                if items:
+                    streaming_details = items[0].get("liveStreamingDetails")
+                    snippet = items[0].get("snippet", {})
+                    live_broadcast_content = snippet.get("liveBroadcastContent", "none")
+                    
+                    if streaming_details and live_broadcast_content == "live":
+                        chat_id = streaming_details.get("activeLiveChatId")
+                        if chat_id:
+                            title = snippet.get("title", "")
+                            channel_title = snippet.get("channelTitle", "")
+                            logger.info(f"✅ Đã kết nối Live Chat luồng của [{channel_title}]: '{title}' (Chat ID: {chat_id})")
+                            self.current_video_id = target_vid
+                            return chat_id
+            except Exception as e:
+                logger.warning(f"Lỗi kiểm tra video {target_vid}: {e}")
 
-        # 3. Fallback: Auto-detect from own channel (mine=True)
-        logger.info("Đang tự động tìm luồng phát trực tiếp trên chính kênh của bạn (mine=True)...")
-        for status in ["active", "all", "upcoming"]:
-            resp = self.youtube.liveBroadcasts().list(
-                part="snippet,status",
-                broadcastStatus=status,
-                mine=True
-            ).execute()
-            for broadcast in resp.get("items", []):
-                snippet = broadcast.get("snippet", {})
-                chat_id = snippet.get("liveChatId")
-                if chat_id:
-                    title = snippet.get("title", "Live Stream")
-                    logger.info(f"Đã tìm thấy buổi phát trực tiếp ({status}): '{title}' (Chat ID: {chat_id})")
-                    return chat_id
+        # 3. Fallback: Check own broadcasts if streaming from bot's own account
+        if not self.target_channel:
+            try:
+                resp = self.youtube.liveBroadcasts().list(
+                    part="snippet,status",
+                    broadcastType="all",
+                    mine=True
+                ).execute()
+                for broadcast in resp.get("items", []):
+                    snippet = broadcast.get("snippet", {})
+                    chat_id = snippet.get("liveChatId")
+                    if chat_id:
+                        title = snippet.get("title", "Live Stream")
+                        logger.info(f"Đã tìm thấy buổi phát trực tiếp: '{title}' (Chat ID: {chat_id})")
+                        return chat_id
+            except Exception:
+                pass
 
-        raise ValueError(
-            "Không tìm thấy luồng phát trực tiếp nào đang hoạt động!\n"
-            "Gợi ý: Nếu stream trên kênh khác (như @DHDota2), hãy đảm bảo kênh đó đang Live, "
-            "hoặc điền TARGET_CHANNEL=@DHDota2 / YOUTUBE_VIDEO_ID trong file .env!"
-        )
+        return None
 
     def send_chat_message(self, text: str):
         """Send a message to YouTube Live Chat, ensuring it doesn't exceed 200 characters."""
@@ -198,7 +192,6 @@ class YouTubeLiveChatBot:
             logger.warning("Chưa có live_chat_id, không thể gửi tin nhắn.")
             return
 
-        # YouTube live chat max length is 200 chars
         if len(text) > 200:
             text = text[:197] + "..."
 
@@ -228,11 +221,9 @@ class YouTubeLiveChatBot:
         cmd = command.strip().lower()
         now = time.time()
 
-        # Check global cooldown
         if now - self.last_global_reply_time < self.global_cooldown:
             return None
 
-        # Check command specific cooldown
         if cmd in self.last_command_time:
             if now - self.last_command_time[cmd] < self.command_cooldown:
                 logger.info(f"Lệnh '{cmd}' đang trong thời gian chờ (cooldown). Bỏ qua.")
@@ -251,7 +242,7 @@ class YouTubeLiveChatBot:
         elif cmd in ["!dotabuff", "!profile", "!opendota"]:
             reply = self.dota.get_profile_message()
         elif cmd in ["!help", "!lenh", "!bot"]:
-            reply = "📜 Lệnh có sẵn: !today (kết quả hôm nay), !rank (rank hiện tại), !mmr (thông tin MMR), !lastmatch (trận vừa xong), !profile (link Dotabuff)."
+            reply = "📜 Lệnh có sẵn: !today (kết quả ca stream hôm nay), !rank (rank hiện tại), !mmr (thông tin MMR), !lastmatch (trận vừa xong), !profile (link Dotabuff)."
 
         if reply:
             self.last_command_time[cmd] = now
@@ -259,24 +250,28 @@ class YouTubeLiveChatBot:
         return None
 
     def start_polling(self):
-        """Main loop: Poll live chat messages and dispatch commands."""
+        """Main loop: Standby when offline, poll live chat when streamer goes live."""
         if not self.youtube:
             self.authenticate()
 
-        self.live_chat_id = self.resolve_live_chat_id()
         next_page_token = None
         is_first_poll = True
 
-        logger.info("🚀 Bot Dota 2 đang hoạt động và lắng nghe live chat YouTube!")
+        logger.info(f"🚀 Bot Dota 2 đang ở chế độ chờ sẵn cho kênh: {self.target_channel or 'kênh của bạn'}!")
 
         while True:
             try:
-                # If stream ended or lost chat ID, try re-resolving periodically
+                # If not currently connected to an active chat, attempt to resolve
                 if not self.live_chat_id:
-                    logger.info("Đang thử kết nối lại luồng live...")
                     self.live_chat_id = self.resolve_live_chat_id()
-                    next_page_token = None
-                    is_first_poll = True
+                    if not self.live_chat_id:
+                        # Streamer is offline, wait 30s before checking again
+                        time.sleep(30)
+                        continue
+                    else:
+                        next_page_token = None
+                        is_first_poll = True
+                        logger.info("🟢 Luồng Live đã bắt đầu! Đang lắng nghe chat...")
 
                 params = {
                     "liveChatId": self.live_chat_id,
@@ -288,7 +283,7 @@ class YouTubeLiveChatBot:
                 resp = self.youtube.liveChatMessages().list(**params).execute()
                 next_page_token = resp.get("nextPageToken")
                 poll_interval = resp.get("pollingIntervalMillis", 4000) / 1000.0
-                poll_interval = max(poll_interval, 3.0)  # Never poll faster than 3s to preserve quota
+                poll_interval = max(poll_interval, 3.0)
 
                 items = resp.get("items", [])
 
@@ -296,7 +291,7 @@ class YouTubeLiveChatBot:
                     for item in items:
                         self.seen_message_ids.add(item.get("id"))
                     is_first_poll = False
-                    logger.info(f"Đã khởi tạo, bỏ qua {len(items)} tin nhắn cũ trong lịch sử chat.")
+                    logger.info(f"Đã kết nối, bỏ qua {len(items)} tin nhắn cũ trước khi bot vào.")
                 else:
                     for item in items:
                         msg_id = item.get("id")
@@ -325,7 +320,6 @@ class YouTubeLiveChatBot:
                                 if reply:
                                     self.send_chat_message(reply)
 
-                # Prune seen message set if it grows too large
                 if len(self.seen_message_ids) > 1000:
                     self.seen_message_ids = set(list(self.seen_message_ids)[-500:])
 
@@ -334,7 +328,7 @@ class YouTubeLiveChatBot:
             except HttpError as e:
                 logger.error(f"Lỗi YouTube API: {e}")
                 if "liveChatEnded" in str(e) or "liveChatNotFound" in str(e):
-                    logger.warning("Luồng live đã kết thúc hoặc đóng chat. Chờ 30 giây để tìm luồng mới...")
+                    logger.warning("Luồng livestream đã kết thúc hoặc đóng chat. Bot chuyển về chế độ chờ luồng tiếp theo...")
                     self.live_chat_id = None
                     time.sleep(30)
                 else:

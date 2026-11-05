@@ -28,7 +28,7 @@ def run_terminal_test(dota_client: OpenDotaClient):
     print("🎮 CHẾ ĐỘ TEST LỆNH DOTA 2 TRÊN TERMINAL")
     print(f"Player ID: {dota_client.account_id}")
     print("Gõ một lệnh bất kỳ để thử nghiệm (hoặc 'exit' để thoát):")
-    print("  !today     - Kết quả thi đấu hôm nay")
+    print("  !today     - Kết quả thi đấu hôm nay (ca stream)")
     print("  !rank      - Rank hiện tại")
     print("  !mmr       - Thông tin MMR / Bảng xếp hạng")
     print("  !lastmatch - Chi tiết trận đấu vừa xong")
@@ -78,13 +78,17 @@ def main():
     args = parser.parse_args()
 
     api_key = os.getenv("OPENDOTA_API_KEY")
+    steam_api_key = os.getenv("STEAM_API_KEY")
     tz_offset = int(os.getenv("TIMEZONE_OFFSET", "7"))
+    session_gap = float(os.getenv("SESSION_GAP_HOURS", "5.0"))
 
     dota_client = OpenDotaClient(
         account_id=args.account_id,
         api_key=api_key,
+        steam_api_key=steam_api_key,
         tz_offset_hours=tz_offset,
-        manual_mmr=args.manual_mmr
+        manual_mmr=args.manual_mmr,
+        session_gap_hours=session_gap
     )
 
     if args.test_dota:
