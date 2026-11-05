@@ -79,6 +79,7 @@ def main():
 
     api_key = os.getenv("OPENDOTA_API_KEY")
     steam_api_key = os.getenv("STEAM_API_KEY")
+    stratz_api_token = os.getenv("STRATZ_API_TOKEN")
     tz_offset = int(os.getenv("TIMEZONE_OFFSET", "7"))
     session_gap = float(os.getenv("SESSION_GAP_HOURS", "5.0"))
 
@@ -86,6 +87,7 @@ def main():
         account_id=args.account_id,
         api_key=api_key,
         steam_api_key=steam_api_key,
+        stratz_api_token=stratz_api_token,
         tz_offset_hours=tz_offset,
         manual_mmr=args.manual_mmr,
         session_gap_hours=session_gap

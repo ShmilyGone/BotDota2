@@ -157,6 +157,7 @@ class OpenDotaClient:
         account_id: str = "196931374",
         api_key: Optional[str] = None,
         steam_api_key: Optional[str] = None,
+        stratz_api_token: Optional[str] = None,
         tz_offset_hours: int = 7,
         manual_mmr: Optional[str] = None,
         session_gap_hours: float = 5.0
@@ -164,6 +165,7 @@ class OpenDotaClient:
         self.account_id = str(account_id)
         self.api_key = api_key
         self.steam_api_key = steam_api_key
+        self.stratz_api_token = stratz_api_token
         self.tz = timezone(timedelta(hours=tz_offset_hours))
         self.manual_mmr = manual_mmr
         self.session_gap_hours = session_gap_hours
@@ -256,6 +258,82 @@ class OpenDotaClient:
                 return self._profile_cache
             raise e
 
+    def _fetch_stratz_matches(self) -> List[Dict[str, Any]]:
+        """Fetch real-time matches from STRATZ.com GraphQL API if STRATZ_API_TOKEN is provided."""
+        if not self.stratz_api_token:
+            return []
+        try:
+            query = """
+            query ($steamAccountId: Long!) {
+              player(steamAccountId: $steamAccountId) {
+                matches(request: { take: 10 }) {
+                  id
+                  startDateTime
+                  durationSeconds
+                  players {
+                    steamAccountId
+                    heroId
+                    isVictory
+                    kills
+                    deaths
+                    assists
+                  }
+                }
+              }
+            }
+            """
+            headers = {
+                "Authorization": f"Bearer {self.stratz_api_token}",
+                "User-Agent": "STRATZ_API",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "query": query,
+                "variables": {"steamAccountId": int(self.account_id)}
+            }
+            resp = self.session.post("https://api.stratz.com/graphql", json=payload, headers=headers, timeout=8)
+            if resp.status_code != 200:
+                logger.warning(f"STRATZ API trả về status {resp.status_code}")
+                return []
+            
+            data = resp.json().get("data", {}).get("player", {}) or {}
+            raw_matches = data.get("matches", []) or []
+            
+            parsed_matches = []
+            for rm in raw_matches:
+                match_id = rm.get("id")
+                start_time = rm.get("startDateTime", 0)
+                duration = rm.get("durationSeconds", 0)
+                
+                players = rm.get("players", []) or []
+                player_entry = next((p for p in players if str(p.get("steamAccountId")) == self.account_id), None)
+                if not player_entry:
+                    continue
+                
+                hero_id = player_entry.get("heroId")
+                won = bool(player_entry.get("isVictory", False))
+                kills = player_entry.get("kills", 0)
+                deaths = player_entry.get("deaths", 0)
+                assists = player_entry.get("assists", 0)
+                
+                # Mock player_slot and radiant_win to remain compatible with OpenDota logic:
+                # slot < 128 and radiant_win == won
+                parsed_matches.append({
+                    "match_id": match_id,
+                    "player_slot": 0,
+                    "radiant_win": won,
+                    "duration": duration,
+                    "hero_id": hero_id,
+                    "start_time": start_time,
+                    "kills": kills,
+                    "deaths": deaths,
+                    "assists": assists
+                })
+            return parsed_matches
+        except Exception as e:
+            logger.warning(f"Lỗi khi gọi STRATZ API: {e}")
+            return []
+
     def _fetch_steam_matches(self) -> List[Dict[str, Any]]:
         """Fetch real-time matches directly from Valve Steam Web API if STEAM_API_KEY is provided."""
         if not self.steam_api_key:
@@ -316,21 +394,29 @@ class OpenDotaClient:
             return []
 
     def get_recent_matches(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
-        """Fetch recent matches with stale cache fallback on network drops."""
+        """Fetch recent matches: prioritizes STRATZ / Steam Web API, with OpenDota fallback."""
         now = time.time()
         if not force_refresh and self._matches_cache and (now - self._matches_cache_time < self.cache_ttl_matches):
             return self._matches_cache
 
         self.trigger_opendota_refresh()
 
-        # Try Steam API first for 0s latency
+        # 1. Thử lấy từ STRATZ API trước (cập nhật siêu tốc)
+        stratz_matches = self._fetch_stratz_matches()
+        if stratz_matches:
+            # Nếu STRATZ có dữ liệu mới hơn hoặc bằng OpenDota
+            self._matches_cache = stratz_matches
+            self._matches_cache_time = now
+            return stratz_matches
+
+        # 2. Thử lấy từ Steam Web API
         steam_matches = self._fetch_steam_matches()
         if steam_matches:
             self._matches_cache = steam_matches
             self._matches_cache_time = now
             return steam_matches
 
-        # Fallback to OpenDota
+        # 3. Mặc định fallback về OpenDota
         try:
             data = self._api_get(f"players/{self.account_id}/matches", params={"limit": 25})
             self._matches_cache = data
