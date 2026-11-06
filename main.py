@@ -38,6 +38,7 @@ def run_terminal_test(dota_client: OpenDotaClient):
     print("  !live      - Trận đang diễn ra của streamer")
     print("  !career    - Tổng quan toàn bộ sự nghiệp Dota 2")
     print("  !funfact   - Góc vui: APM, số lần ping map, Thánh kiếm, gà bị giết")
+    print("  !connapse  - Funfact tình đồng chí khi duo cùng connapse")
     print("  !help      - Trợ giúp")
     print("=" * 60)
 
@@ -72,10 +73,12 @@ def run_terminal_test(dota_client: OpenDotaClient):
                 print(dota_client.get_career_message())
             elif cmd_name in ["!funfact", "!ditat"]:
                 print(dota_client.get_funfact_message())
+            elif cmd_name in ["!connapse", "!collapse"]:
+                print(dota_client.get_connapse_message())
             elif cmd_name in ["!help", "!lenh"]:
-                print("📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live, !career, !funfact")
+                print("📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live, !career, !funfact, !connapse")
             else:
-                print(f"❓ Không nhận diện được lệnh '{cmd}'. Thử: !today, !rank, !career, !funfact")
+                print(f"❓ Không nhận diện được lệnh '{cmd}'. Thử: !today, !rank, !career, !funfact, !connapse")
         except (KeyboardInterrupt, EOFError):
             print("\nĐã thoát chế độ test.")
             break

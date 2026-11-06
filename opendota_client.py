@@ -220,6 +220,10 @@ class OpenDotaClient:
         self._wl_cache: Optional[Dict[str, Any]] = None
         self._wl_cache_time = 0.0
         self._last_funfact_idx: int = -1
+        self._connapse_cache: Optional[List[Dict[str, Any]]] = None
+        self._connapse_cache_time = 0.0
+        self.cache_ttl_connapse = 86400.0  # 24 hours
+        self._last_connapse_idx: int = -1
         
         self._last_refresh_time = 0.0
 
@@ -1127,6 +1131,92 @@ class OpenDotaClient:
             return facts[chosen_idx]
         except Exception as e:
             logger.error(f"Lỗi trong get_funfact_message: {e}", exc_info=True)
+            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+
+    def get_connapse_message(self) -> str:
+        """Generate response for !connapse: funfact về cặp đôi streamer & tri kỷ connapse (Account ID: 968755756)."""
+        try:
+            connapse_id = "968755756"
+            now = time.time()
+            if self._connapse_cache is not None and (now - self._connapse_cache_time < self.cache_ttl_connapse):
+                matches = self._connapse_cache
+            else:
+                matches = self._api_get(f"players/{self.account_id}/matches", params={"included_account_id": connapse_id})
+                if isinstance(matches, list):
+                    self._connapse_cache = matches
+                    self._connapse_cache_time = now
+                else:
+                    matches = self._connapse_cache or []
+
+            if not matches:
+                return "⚠️ Chưa tìm thấy lịch sử đấu chung với tri kỷ connapse trên OpenDota!"
+
+            with_games = 0
+            with_win = 0
+            streamer_kills = 0
+            streamer_deaths = 0
+            streamer_assists = 0
+            total_sec = 0
+            connapse_heroes: Dict[int, int] = {}
+
+            for m in matches:
+                my_slot = m.get("player_slot", 0)
+                my_radiant = my_slot < 128
+                radiant_win = m.get("radiant_win", False)
+                my_win = (radiant_win and my_radiant) or (not radiant_win and not my_radiant)
+
+                heroes_map = m.get("heroes") or {}
+                connapse_slot = None
+                connapse_hero = None
+                for slot_str, p_info in heroes_map.items():
+                    if str(p_info.get("account_id")) == connapse_id:
+                        connapse_slot = int(slot_str)
+                        connapse_hero = p_info.get("hero_id")
+                        break
+
+                is_same_team = (connapse_slot is not None) and ((my_slot < 128) == (connapse_slot < 128))
+                if is_same_team:
+                    with_games += 1
+                    if my_win:
+                        with_win += 1
+                    total_sec += m.get("duration", 0)
+                    streamer_kills += m.get("kills", 0)
+                    streamer_deaths += m.get("deaths", 0)
+                    streamer_assists += m.get("assists", 0)
+                    if connapse_hero:
+                        connapse_heroes[connapse_hero] = connapse_heroes.get(connapse_hero, 0) + 1
+
+            if with_games == 0:
+                return "⚠️ Chưa tìm thấy trận đấu chung team nào giữa streamer và connapse!"
+
+            hours = total_sec // 3600
+            minutes = (total_sec % 3600) // 60
+            wr = (with_win / max(1, with_games)) * 100.0
+            kp_avg = (streamer_kills + streamer_assists) / max(1, with_games)
+
+            top_h = sorted(connapse_heroes.items(), key=lambda x: x[1], reverse=True)[:4]
+            top_h_str = ", ".join([f"{self.get_hero_short_name(h_id)} {cnt} trận" for h_id, cnt in top_h])
+
+            max_dur = max(m.get("duration", 0) for m in matches) // 60
+            min_dur = min(m.get("duration", 0) for m in matches) // 60
+
+            latest_ts = matches[0].get("start_time", 0)
+            latest_date = datetime.fromtimestamp(latest_ts, tz=self.tz).strftime("%d/%m")
+
+            facts = [
+                f"🤝 Tri kỷ connapse: {with_games} trận kề vai sát cánh ({hours}h{minutes:02d}p), 100% CÙNG PHE chưa từng đối đầu! Kết quả: {with_win}W - {with_games - with_win}L ({wr:.1f}%).",
+                f"🧙‍♂️ connapse - Vú em quốc dân: Chuyên pick Support bảo kê ({top_h_str}) để streamer tha hồ múa lửa gánh team!",
+                f"🔥 Cặp đôi huỷ diệt: Trong {with_games} trận duo với connapse, streamer bỏ túi {streamer_kills} Kills & {streamer_assists} Assists (trung bình {kp_avg:.1f} mạng đóng góp/trận)!",
+                f"⏱️ Kỷ lục duo cùng connapse: Trận lầy lội nhất kéo dài {max_dur} phút căng thẳng, còn trận nhanh nhất ép đối thủ gõ GG chỉ sau đúng {min_dur} phút!",
+                f"🍻 Tình đồng chí keo sơn: Cùng cày {hours}h{minutes:02d}p Dota 2, trận gần nhất vừa quẩy ngày {latest_date}! Dù winrate {wr:.1f}% nhưng tình anh em không bao giờ rạn nứt."
+            ]
+
+            available = [i for i in range(len(facts)) if i != self._last_connapse_idx]
+            chosen_idx = random.choice(available) if available else 0
+            self._last_connapse_idx = chosen_idx
+            return facts[chosen_idx]
+        except Exception as e:
+            logger.error(f"Lỗi trong get_connapse_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_pro_message(self, query: Optional[str] = None) -> str:
