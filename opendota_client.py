@@ -209,9 +209,9 @@ class OpenDotaClient:
         self._live_cache_time = 0.0
         self._distributions_cache: Optional[Dict[str, Any]] = None
         self._distributions_cache_time = 0.0
-        self.cache_ttl_totals = 3600.0
-        self.cache_ttl_pros = 1800.0
-        self.cache_ttl_wl = 3600.0
+        self.cache_ttl_totals = 86400.0       # 24 hours (1 ngày)
+        self.cache_ttl_pros = 86400.0         # 24 hours (1 ngày)
+        self.cache_ttl_wl = 86400.0           # 24 hours (1 ngày)
         self._totals_cache: Optional[List[Dict[str, Any]]] = None
         self._totals_cache_time = 0.0
         self._pros_cache: Optional[List[Dict[str, Any]]] = None
@@ -676,7 +676,7 @@ class OpenDotaClient:
 
             return base_msg + hero_str
         except Exception as e:
-            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
+            logger.error(f"Lỗi trong get_today_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     @staticmethod
@@ -707,7 +707,7 @@ class OpenDotaClient:
                 return f"🔥 Đang thắng {streak} trận liên tiếp | Trận gần nhất: {hero} ({kda})"
             return f"💀 Đang thua {streak} trận liên tiếp | Trận gần nhất: {hero} ({kda})"
         except Exception as e:
-            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
+            logger.error(f"Lỗi trong get_streak_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_recent_message(self, count: int = 10) -> str:
@@ -724,7 +724,7 @@ class OpenDotaClient:
             wins = results.count("W")
             return f"📊 {len(recent)} trận gần nhất: {' '.join(results)} ({wins}W-{len(recent) - wins}L)"
         except Exception as e:
-            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
+            logger.error(f"Lỗi trong get_recent_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_player_heroes(self, limit: int = 100) -> List[Dict[str, Any]]:
@@ -784,7 +784,7 @@ class OpenDotaClient:
                 parts.append(f"{self.get_hero_short_name(h.get('hero_id', 0))} ({games} trận, {wr:.0f}%)")
             return "🏆 Tướng tủ (100 trận gần nhất): " + " | ".join(parts)
         except Exception as e:
-            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
+            logger.error(f"Lỗi trong get_heroes_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_player_peers(self, limit: int = 100) -> List[Dict[str, Any]]:
@@ -837,7 +837,7 @@ class OpenDotaClient:
                 parts.append(f"{name} ({games} trận, {wins}W)")
             return "👥 Hay duo với (100 trận gần nhất): " + " | ".join(parts)
         except Exception as e:
-            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
+            logger.error(f"Lỗi trong get_mate_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_live_game(self) -> Optional[Dict[str, Any]]:
@@ -960,11 +960,11 @@ class OpenDotaClient:
                 msg += " | Pro đối đầu: " + ", ".join(pros_opp)
             return msg
         except Exception as e:
-            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
+            logger.error(f"Lỗi trong get_live_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_player_totals(self) -> List[Dict[str, Any]]:
-        """Lấy dữ liệu thống kê sự nghiệp từ OpenDota /players/{id}/totals, cache 1h."""
+        """Lấy dữ liệu thống kê sự nghiệp từ OpenDota /players/{id}/totals, cache 24h."""
         now = time.time()
         if self._totals_cache is not None and (now - self._totals_cache_time < self.cache_ttl_totals):
             return self._totals_cache
@@ -981,7 +981,7 @@ class OpenDotaClient:
         return self._totals_cache or []
 
     def get_player_wl(self) -> Dict[str, Any]:
-        """Lấy tổng số trận thắng/thua sự nghiệp từ OpenDota /players/{id}/wl, cache 1h."""
+        """Lấy tổng số trận thắng/thua sự nghiệp từ OpenDota /players/{id}/wl, cache 24h."""
         now = time.time()
         if self._wl_cache is not None and (now - self._wl_cache_time < self.cache_ttl_wl):
             return self._wl_cache
@@ -998,7 +998,7 @@ class OpenDotaClient:
         return self._wl_cache or {}
 
     def get_player_pros(self) -> List[Dict[str, Any]]:
-        """Lấy toàn bộ danh sách Pro Player từng thi đấu cùng hoặc đối đầu từ OpenDota, cache 30p."""
+        """Lấy toàn bộ danh sách Pro Player từng thi đấu cùng hoặc đối đầu từ OpenDota, cache 24h."""
         now = time.time()
         if self._pros_cache is not None and (now - self._pros_cache_time < self.cache_ttl_pros):
             return self._pros_cache
@@ -1047,7 +1047,7 @@ class OpenDotaClient:
                 f"{_fmt(kills)} Kills, {_fmt(assists)} Assists | {dmg_mil} Triệu sát thương!"
             )
         except Exception as e:
-            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
+            logger.error(f"Lỗi trong get_career_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_funfact_message(self) -> str:
@@ -1074,7 +1074,7 @@ class OpenDotaClient:
                 f"🗡️ {rapiers} lần mua Thánh Kiếm Rapier | 🪓 {_fmt(couriers)} con gà bị đồ sát!"
             )
         except Exception as e:
-            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
+            logger.error(f"Lỗi trong get_funfact_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_pro_message(self, query: Optional[str] = None) -> str:
