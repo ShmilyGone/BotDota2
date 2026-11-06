@@ -141,7 +141,7 @@ class YouTubeLiveChatBot:
         video_id: Optional[str] = None,
         command_cooldown: float = 20.0,
         global_cooldown: float = 10.0,
-        dedup_window: float = 180.0
+        dedup_window: float = 60.0
     ):
         self.dota = dota_client
         self.account_pool = account_pool or AccountPool()
@@ -150,8 +150,7 @@ class YouTubeLiveChatBot:
         self.command_cooldown = command_cooldown
         self.global_cooldown = global_cooldown
         # Trong bao lâu thì một câu trả lời giống hệt lần trước sẽ bị bỏ qua
-        # (180s = 3 phút: đủ để chặn spam lặp lại, nhưng viewer mới vào sau
-        # đó vẫn nhận được câu trả lời).
+        # (60s = 1 phút: đủ để chặn spam lặp lại liên tục nhưng không bỏ qua người xem mới).
         self.dedup_window = dedup_window
 
         self.live_chat_id: Optional[str] = None

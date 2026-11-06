@@ -95,7 +95,7 @@ def main():
     parser.add_argument("--video-id", type=str, default=os.getenv("YOUTUBE_VIDEO_ID", None), help="ID của video livestream YouTube (vd: IuM8Nhptdy4)")
     parser.add_argument("--cooldown", type=float, default=float(os.getenv("COMMAND_COOLDOWN", "20.0")), help="Thời gian hồi mỗi lệnh (giây)")
     parser.add_argument("--global-cooldown", type=float, default=float(os.getenv("GLOBAL_COOLDOWN", "10.0")), help="Thời gian hồi chung giữa mọi tin trả lời (giây)")
-    parser.add_argument("--dedup-window", type=float, default=float(os.getenv("DEDUP_WINDOW_SECONDS", "180.0")), help="Trong bao nhiêu giây thì câu trả lời giống hệt lần trước sẽ bị bỏ qua (giây)")
+    parser.add_argument("--dedup-window", type=float, default=float(os.getenv("DEDUP_WINDOW_SECONDS", "60.0")), help="Trong bao nhiêu giây thì câu trả lời giống hệt lần trước sẽ bị bỏ qua (giây)")
     
     args = parser.parse_args()
 

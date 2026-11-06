@@ -230,7 +230,7 @@ class OpenDotaClient:
     def trigger_opendota_refresh(self):
         """Asynchronously notify OpenDota to sync recent matches from Valve."""
         now = time.time()
-        if now - self._last_refresh_time > 120.0:
+        if now - self._last_refresh_time > 45.0:
             self._last_refresh_time = now
             def _refresh():
                 try:
@@ -440,10 +440,17 @@ class OpenDotaClient:
         if steam_matches:
             candidates.append(steam_matches)
 
-        # 3. Lấy từ OpenDota
+        # 3. Lấy từ OpenDota (kết hợp cả /recentMatches cập nhật nhanh và /matches)
+        try:
+            recent_m = self._api_get(f"players/{self.account_id}/recentMatches")
+            if recent_m and isinstance(recent_m, list):
+                candidates.append(recent_m)
+        except Exception as e:
+            logger.warning(f"Lỗi khi lấy recentMatches từ OpenDota: {e}")
+
         try:
             opendota_matches = self._api_get(f"players/{self.account_id}/matches", params={"limit": 25})
-            if opendota_matches:
+            if opendota_matches and isinstance(opendota_matches, list):
                 candidates.append(opendota_matches)
         except Exception as e:
             logger.warning(f"Lỗi khi lấy từ OpenDota: {e}")
