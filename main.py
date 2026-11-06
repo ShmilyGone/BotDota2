@@ -36,7 +36,6 @@ def run_terminal_test(dota_client: OpenDotaClient):
     print("  !heroes    - Tướng tủ trong 100 trận gần nhất")
     print("  !mate      - Hay duo với ai trong 100 trận gần nhất")
     print("  !live      - Trận đang diễn ra của streamer")
-    print("  !pro <tên> - Thống kê đối đầu với pro player (vd: !pro 23savage, !pro skem)")
     print("  !career    - Tổng quan toàn bộ sự nghiệp Dota 2")
     print("  !funfact   - Góc vui: APM, số lần ping map, Thánh kiếm, gà bị giết")
     print("  !help      - Trợ giúp")
@@ -69,16 +68,14 @@ def run_terminal_test(dota_client: OpenDotaClient):
                 print(dota_client.get_mate_message())
             elif cmd_name in ["!live"]:
                 print(dota_client.get_live_message())
-            elif cmd_name in ["!pro", "!pros"]:
-                print(dota_client.get_pro_message(arg))
             elif cmd_name in ["!career", "!totals"]:
                 print(dota_client.get_career_message())
             elif cmd_name in ["!funfact", "!ditat"]:
                 print(dota_client.get_funfact_message())
             elif cmd_name in ["!help", "!lenh"]:
-                print("📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live, !pro <tên>, !career, !funfact")
+                print("📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live, !career, !funfact")
             else:
-                print(f"❓ Không nhận diện được lệnh '{cmd}'. Thử: !today, !rank, !pro 23savage, !career, !funfact")
+                print(f"❓ Không nhận diện được lệnh '{cmd}'. Thử: !today, !rank, !career, !funfact")
         except (KeyboardInterrupt, EOFError):
             print("\nĐã thoát chế độ test.")
             break

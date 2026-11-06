@@ -594,7 +594,7 @@ class OpenDotaClient:
 
             return f"🏅 Rank hiện tại của {name}: {rank_str}"
         except Exception as e:
-            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
+            logger.error(f"Lỗi trong get_rank_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_today_message(self) -> str:

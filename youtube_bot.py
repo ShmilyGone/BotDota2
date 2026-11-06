@@ -209,10 +209,9 @@ class YouTubeLiveChatBot:
             "!besthero": "!heroes",
             "!totals": "!career",
             "!ditat": "!funfact",
-            "!pros": "!pro",
         }.get(cmd_raw, cmd_raw)
 
-        rate_key = f"{cmd_key}:{arg.lower()}" if arg else cmd_key
+        rate_key = cmd_key
 
         if now - self.last_global_reply_time < self.global_cooldown:
             return None
@@ -242,10 +241,8 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_career_message()
         elif cmd_key in ["!funfact"]:
             reply = self.dota.get_funfact_message()
-        elif cmd_key in ["!pro"]:
-            reply = self.dota.get_pro_message(arg)
         elif cmd_key in ["!help"]:
-            reply = "📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live, !pro <tên>, !career, !funfact."
+            reply = "📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live, !career, !funfact."
 
         if reply:
             # Chống trùng lặp: nếu câu trả lời giống hệt lần đã gửi gần đây
