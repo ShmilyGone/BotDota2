@@ -24,36 +24,79 @@ def resolve_channel_live_video(target_channel: str) -> Optional[str]:
     """
     Find active live video ID for a channel handle or URL without consuming API quota.
     Supports handles like '@DHDota2' or full URLs 'https://www.youtube.com/@DHDota2'.
+    Ensures that the resolved video is genuinely LIVE and not an old recording or trailer.
     """
     target = target_channel.strip()
     if not target.startswith("http"):
         if not target.startswith("@"):
             target = "@" + target
-        url = f"https://www.youtube.com/{target}/live"
+        base_url = f"https://www.youtube.com/{target}"
     else:
-        url = target.rstrip("/")
-        if not url.endswith("/live"):
-            url += "/live"
+        base_url = target.rstrip("/")
 
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cookie": "SOCS=CAESEwgDEgk0ODE3Nzk3MjQaAmVuIAEaBgiA_LyaBg",
+    }
+
+    # 1. First attempt: check /live endpoint
+    url = f"{base_url}/live"
     try:
-        req = urllib.request.Request(
-            url,
-            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-        )
+        req = urllib.request.Request(url, headers=headers)
         resp = urllib.request.urlopen(req, timeout=10)
+        final_url = resp.geturl()
         html = resp.read().decode("utf-8", errors="ignore")
 
-        # 1. Check canonical link
-        canonical = re.findall(r'<link rel="canonical" href="https://www\.youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})">', html)
-        if canonical:
-            return canonical[0]
+        cand_id = None
+        # Check if URL redirected directly to watch?v=XYZ
+        m_url = re.search(r'[?&]v=([a-zA-Z0-9_-]{11})', final_url)
+        if m_url:
+            cand_id = m_url.group(1)
 
-        # 2. Check videoId in initialData
-        vids = re.findall(r'"videoId":"([a-zA-Z0-9_-]{11})"', html)
-        if vids:
-            return vids[0]
+        # Check canonical link
+        if not cand_id:
+            m_canon = re.search(r'<link rel="canonical" href="https://www\.youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})">', html)
+            if m_canon:
+                cand_id = m_canon.group(1)
+
+        # Check videoDetails in initial player response
+        if not cand_id:
+            m_details = re.search(r'"videoDetails"\s*:\s*\{"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"', html)
+            if m_details:
+                cand_id = m_details.group(1)
+
+        # Verify candidate is ACTUALLY live
+        if cand_id:
+            is_live = (
+                '"isLive":true' in html
+                or '"isLiveNow":true' in html
+                or '"isLiveContent":true' in html
+                or '"style":"LIVE"' in html
+                or 'liveStreamabilityRenderer' in html
+            )
+            if is_live:
+                return cand_id
     except Exception as e:
         logger.warning(f"Không thể quét trực tiếp link '{url}': {e}")
+
+    # 2. Second attempt: check /streams tab to find current live broadcast
+    url_streams = f"{base_url}/streams"
+    try:
+        req_s = urllib.request.Request(url_streams, headers=headers)
+        resp_s = urllib.request.urlopen(req_s, timeout=10)
+        html_s = resp_s.read().decode("utf-8", errors="ignore")
+
+        m_live = re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"[^}]+?"style":"LIVE"', html_s)
+        if m_live:
+            return m_live.group(1)
+        m_live2 = re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"[^}]+?LIVE_NOW', html_s)
+        if m_live2:
+            return m_live2.group(1)
+    except Exception as e:
+        logger.warning(f"Không thể quét tab streams '{url_streams}': {e}")
+
     return None
 
 class YouTubeLiveChatBot:
@@ -206,7 +249,12 @@ class YouTubeLiveChatBot:
                 self.live_chat_id = self.account_pool.fetch_live_chat_id(vid)
 
                 logger.info("📡 Đang kết nối lắng nghe chat qua pytchat (0 Quota API)...")
-                chat = pytchat.create(video_id=vid)
+                try:
+                    chat = pytchat.create(video_id=vid)
+                except Exception as e:
+                    logger.warning(f"Không thể kết nối pytchat tới video {vid}: {e}. Đợi 15s...")
+                    time.sleep(15)
+                    continue
 
                 if not chat.is_alive():
                     logger.warning("Không thể mở luồng live chat qua pytchat. Thử lại sau 15s...")
