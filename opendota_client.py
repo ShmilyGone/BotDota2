@@ -770,6 +770,16 @@ class OpenDotaClient:
         account_id trong danh sách players[]. Trả về None nếu không thấy —
         lưu ý: không thấy trong /live không đồng nghĩa là không đang đánh,
         vì trận rank thấp có thể không lọt top 100.
+
+        BẪY ĐÃ GẶP 2026-11-06: /live GIỮ LẠI trận đã kết thúc rất lâu sau
+        khi nó xong (trận 9078301405 xong lúc ~18:07 mà tới 18:46 vẫn còn
+        trong feed, game_time đóng băng ở 2049). Một player có thể xuất
+        hiện trong 2 trận cùng lúc trong feed, nên KHÔNG được lấy trận đầu
+        tiên tìm thấy. Cách lọc: trong các trận có player, chọn trận có
+        last_update_time mới nhất (trận đang đánh được cập nhật liên tục,
+        trận xong thì đóng băng); nếu trận mới nhất đó đã quá 300 giây
+        không cập nhật thì coi như đã kết thúc. deactivate_time không dùng
+        được vì nó vẫn = 0 ngay cả với trận đã xong.
         """
         now = time.time()
         if self._live_cache is not None and (now - self._live_cache_time < self.cache_ttl_live):
@@ -789,11 +799,19 @@ class OpenDotaClient:
             my_id = int(self.account_id)
         except (TypeError, ValueError):
             return None
-        for g in games:
-            for p in g.get("players") or []:
-                if p.get("account_id") == my_id:
-                    return g
-        return None
+        matches = [g for g in games
+                   if any(p.get("account_id") == my_id for p in g.get("players") or [])]
+        if not matches:
+            return None
+        # Trận đang đánh là trận được cập nhật gần nhất; trận đã xong thì
+        # last_update_time đóng băng và tụt lại phía sau.
+        best = max(matches, key=lambda g: (g.get("last_update_time") or 0,
+                                            g.get("activate_time") or 0))
+        last_update = best.get("last_update_time") or 0
+        if last_update and (now - last_update > 300):
+            logger.warning(f"Trận live của player {my_id} đã {int(now - last_update)}s không cập nhật, coi như đã kết thúc.")
+            return None
+        return best
 
     @staticmethod
     def estimate_win_pct(my_lead: int, game_time: int, kill_diff: int) -> int:
@@ -819,17 +837,18 @@ class OpenDotaClient:
 
         Theo yêu cầu của user, KHÔNG hiện tướng, tỉ số hay số người xem.
         Chỉ trả về phút thi đấu + tỉ lệ thắng ước tính (xem
-        estimate_win_pct) và, nếu có, tên pro (is_pro) cùng team / đối đầu
-        lấy từ dữ liệu /live. Dữ liệu trễ ~120 giây (delay xem spectate).
+        estimate_win_pct) + chênh vàng theo góc streamer, và, nếu có,
+        tên pro (is_pro) cùng team / đối đầu lấy từ dữ liệu /live.
+        Dữ liệu trễ ~120 giây (delay xem spectate).
         """
         try:
             game = self.get_live_game()
             if not game:
-                return "⚠️ Hiện không thấy streamer đang trong trận (theo OpenDota /live, chỉ top 100 trận live)."
+                return "⚠️ Không thấy streamer trong top 100 trận live của OpenDota — có thể đang đánh nhưng trận không lọt top 100."
             players = game.get("players") or []
             me = next((p for p in players if p.get("account_id") == int(self.account_id)), None)
             if not me:
-                return "⚠️ Hiện không thấy streamer đang trong trận (theo OpenDota /live, chỉ top 100 trận live)."
+                return "⚠️ Không thấy streamer trong top 100 trận live của OpenDota — có thể đang đánh nhưng trận không lọt top 100."
             game_time = int(game.get("game_time") or 0)
             if game_time < 0:
                 game_time = 0
@@ -842,7 +861,15 @@ class OpenDotaClient:
             my_lead = lead if is_radiant else -lead
             kill_diff = (radiant_score - dire_score) if is_radiant else (dire_score - radiant_score)
             win_pct = self.estimate_win_pct(my_lead, game_time, kill_diff)
-            msg = f"🔴 Đang đánh ({clock}): ước tính thắng ~{win_pct}%"
+            # Chênh vàng theo góc streamer (radiant_lead đã đổi dấu ở trên).
+            # Hiện dạng "Dẫn 12k vàng" / "Kém 5k vàng", dưới 1k thì hiện số vàng thô.
+            if my_lead == 0:
+                gold_part = "Hòa vàng"
+            else:
+                abs_lead = abs(my_lead)
+                lead_str = f"{abs_lead // 1000}k" if abs_lead >= 1000 else f"{abs_lead}"
+                gold_part = f"Dẫn {lead_str} vàng" if my_lead > 0 else f"Kém {lead_str} vàng"
+            msg = f"🔴 Đang đánh ({clock}): ước tính thắng ~{win_pct}% | {gold_part}"
             # Pro trong trận (is_pro từ /live). Rất hiếm nên chỉ hiện khi có.
             my_team = me.get("team")
             pros_mine = [p.get("name") for p in players

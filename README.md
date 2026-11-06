@@ -17,7 +17,7 @@ Bot tự động lắng nghe live chat trên YouTube và phản hồi thông tin
 | `!recent` hoặc `!5tran` | Kết quả 10 trận gần nhất, theo thứ tự thời gian | `📊 10 trận gần nhất: W W L W W L W W W L (7W-3L)` |
 | `!heroes` hoặc `!besthero` | Top 3 tướng hay chơi nhất trong 100 trận gần nhất của streamer (số trận, winrate) | `🏆 Tướng tủ (100 trận gần nhất): OD (40 trận, 70%) \| Ember (30 trận, 60%)` |
 | `!mate` | Top 3 người hay duo cùng nhất trong 100 trận gần nhất (số trận cùng đội, số trận thắng khi duo) | `👥 Hay duo với (100 trận gần nhất): ABC (24 trận, 14W)` |
-| `!live` | Trận đang diễn ra: phút thi đấu + tỉ lệ thắng ước tính từ chênh vàng/kill (công thức heuristic, không phải Dota Plus), kèm tên pro trong trận nếu có | `🔴 Đang đánh (28:09): ước tính thắng ~79%` |
+| `!live` | Trận đang diễn ra: phút thi đấu + tỉ lệ thắng ước tính từ chênh vàng/kill (công thức heuristic, không phải Dota Plus) + chênh vàng theo góc streamer ("Dẫn/Kém …k vàng"), kèm tên pro trong trận nếu có. Lọc trận cũ đã kết thúc trong `/live` theo `last_update_time` mới nhất (quá 5 phút không cập nhật thì coi như hết trận). Nếu không thấy trong top 100 thì báo rõ là có thể đang đánh nhưng trận không lọt top 100, thay vì báo là không đang đánh | `🔴 Đang đánh (28:09): ước tính thắng ~79% \| Dẫn 19k vàng` |
 | `!help` hoặc `!lenh` | Hiển thị danh sách các lệnh có sẵn | `📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live` |
 
 ---
