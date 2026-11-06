@@ -1,6 +1,7 @@
 import math
 import time
 import re
+import random
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List
 import requests
@@ -218,6 +219,7 @@ class OpenDotaClient:
         self._pros_cache_time = 0.0
         self._wl_cache: Optional[Dict[str, Any]] = None
         self._wl_cache_time = 0.0
+        self._last_funfact_idx: int = -1
         
         self._last_refresh_time = 0.0
 
@@ -1051,28 +1053,78 @@ class OpenDotaClient:
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_funfact_message(self) -> str:
-        """Generate response for !funfact / !ditat: các thói quen và số liệu vui trong game."""
+        """Generate response for !funfact / !ditat: ngẫu nhiên 1 trong 10 fact thú vị độc đáo."""
         try:
             player = self.get_player_data()
-            name = player.get("profile", {}).get("personaname", "Streamer")
+            raw_name = player.get("profile", {}).get("personaname", "Streamer")
+            name = (raw_name[:25] + "..") if len(raw_name) > 28 else raw_name
 
             totals_list = self.get_player_totals()
+            if not totals_list:
+                return "⚠️ Hiện chưa tải được thống kê funfact từ OpenDota, vui lòng thử lại sau!"
             totals = {t["field"]: t for t in totals_list}
-
-            apm = totals.get("actions_per_min", {}).get("sum", 0) / max(1, totals.get("actions_per_min", {}).get("n", 1))
-            pings_sum = int(totals.get("pings", {}).get("sum", 0))
-            pings_avg = pings_sum / max(1, totals.get("pings", {}).get("n", 1))
-            rapiers = int(totals.get("purchase_rapier", {}).get("sum", 0))
-            couriers = int(totals.get("courier_kills", {}).get("sum", 0))
 
             def _fmt(n: int) -> str:
                 return f"{n:,}".replace(",", ".")
 
-            return (
-                f"🎭 Góc Fun Fact của {name}: ⚡ Tốc độ tay ~{apm:.0f} APM | "
-                f"📍 Ping map {_fmt(pings_sum)} lần ({pings_avg:.0f} ping/trận) | "
-                f"🗡️ {rapiers} lần mua Thánh Kiếm Rapier | 🪓 {_fmt(couriers)} con gà bị đồ sát!"
-            )
+            couriers = int(totals.get("courier_kills", {}).get("sum", 0))
+            tot_matches = int(totals.get("kills", {}).get("n", 1))
+            matches_per_courier = round(tot_matches / max(1, couriers), 1)
+
+            apm = totals.get("actions_per_min", {}).get("sum", 0) / max(1, totals.get("actions_per_min", {}).get("n", 1))
+            pings_sum = int(totals.get("pings", {}).get("sum", 0))
+            pings_avg = pings_sum / max(1, totals.get("pings", {}).get("n", 1))
+
+            rapiers = int(totals.get("purchase_rapier", {}).get("sum", 0))
+            gems = int(totals.get("purchase_gem", {}).get("sum", 0))
+
+            deaths = int(totals.get("deaths", {}).get("sum", 0))
+            respawn_hours = int((deaths * 40) // 3600)
+            respawn_days = int(respawn_hours // 24)
+
+            last_hits = int(totals.get("last_hits", {}).get("sum", 0))
+            neutrals = int(totals.get("neutral_kills", {}).get("sum", 0))
+            total_creeps = last_hits + neutrals
+            hero_dmg = totals.get("hero_damage", {}).get("sum", 0)
+            dmg_mil = int(hero_dmg // 1000000)
+
+            stuns_sec = int(totals.get("stuns", {}).get("sum", 0))
+            stuns_hours = round(stuns_sec / 3600.0, 1)
+            stuns_days = round(stuns_hours / 24.0, 1)
+
+            towers = int(totals.get("tower_kills", {}).get("sum", 0))
+
+            tps = int(totals.get("purchase_tpscroll", {}).get("sum", 0))
+            denies = int(totals.get("denies", {}).get("sum", 0))
+
+            obs = int(totals.get("purchase_ward_observer", {}).get("sum", 0))
+            sent = int(totals.get("purchase_ward_sentry", {}).get("sum", 0))
+            total_wards = obs + sent
+
+            dur_secs = totals.get("duration", {}).get("sum", 0)
+            hours = int(dur_secs // 3600)
+            days = hours // 24
+            kills = int(totals.get("kills", {}).get("sum", 0))
+            assists = int(totals.get("assists", {}).get("sum", 0))
+            kda_avg = totals.get("kda", {}).get("sum", 0) / max(1, totals.get("kda", {}).get("n", 1))
+
+            facts = [
+                f"🎭 Fun fact: 🪓 {name} đã đồ sát {_fmt(couriers)} con gà (courier)! Cứ trung bình ~{matches_per_courier:.0f} trận lại có 1 shipper xấu số bay màu.",
+                f"🎭 Fun fact: ⚡ {name} có tốc độ tay ~{apm:.0f} APM! Đã ping map {_fmt(pings_sum)} lần ({pings_avg:.0f} ping/trận) — mòn cả màng nhĩ đồng đội.",
+                f"🎭 Fun fact: 🗡️ {name} đã {rapiers} lần all-in mua Thánh Kiếm Rapier và {gems} lần vác Gem soi tàng hình! Tinh thần không ngại rớt kiếm.",
+                f"🎭 Fun fact: 💀 {name} đã {_fmt(deaths)} lần lên bảng đếm số! Ước tính mất ~{_fmt(respawn_hours)} giờ ({respawn_days} ngày đêm) chỉ để ngắm màn hình đen trắng.",
+                f"🎭 Fun fact: 💥 {name} đã farm {_fmt(total_creeps)} lính và quái rừng! Gây {dmg_mil} Triệu sát thương lên hero — bằng máu của 150.000 con Roshan.",
+                f"🎭 Fun fact: ⏳ {name} đã stun đối thủ tổng cộng {_fmt(stuns_sec)} giây (~{stuns_hours} giờ)! Bắt đối phương đứng im bất động suốt {stuns_days} ngày liên tục.",
+                f"🎭 Fun fact: 🏛️ {name} đã đập nát {_fmt(towers)} trụ của đối phương! Chỉ còn đúng {10000 - towers} trụ nữa là cán mốc kỷ lục 10.000 công trình.",
+                f"🎭 Fun fact: 📜 {name} đã mua {_fmt(tps)} cuộn giấy TP Scroll (~3 triệu vàng tiền xe ôm) và tự tay chối bỏ (deny) {_fmt(denies)} lính đồng minh.",
+                f"🎭 Fun fact: 👁️ {name} đã cắm {_fmt(total_wards)} cắm mắt ({_fmt(obs)} mắt xanh, {_fmt(sent)} mắt tím) — cắm đủ thắp sáng rực cả bản đồ!",
+                f"🎭 Fun fact: ⏱️ {name} cống hiến {_fmt(hours)} giờ ({days} ngày đêm) cho Dota 2! Bỏ túi {_fmt(kills)} Kills, {_fmt(assists)} Assists với KDA trung bình {kda_avg:.2f}."
+            ]
+
+            available = [i for i in range(len(facts)) if i != self._last_funfact_idx]
+            chosen_idx = random.choice(available) if available else 0
+            self._last_funfact_idx = chosen_idx
+            return facts[chosen_idx]
         except Exception as e:
             logger.error(f"Lỗi trong get_funfact_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
