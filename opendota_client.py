@@ -1,5 +1,6 @@
 import math
 import time
+import re
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List
 import requests
@@ -208,6 +209,15 @@ class OpenDotaClient:
         self._live_cache_time = 0.0
         self._distributions_cache: Optional[Dict[str, Any]] = None
         self._distributions_cache_time = 0.0
+        self.cache_ttl_totals = 3600.0
+        self.cache_ttl_pros = 1800.0
+        self.cache_ttl_wl = 3600.0
+        self._totals_cache: Optional[List[Dict[str, Any]]] = None
+        self._totals_cache_time = 0.0
+        self._pros_cache: Optional[List[Dict[str, Any]]] = None
+        self._pros_cache_time = 0.0
+        self._wl_cache: Optional[Dict[str, Any]] = None
+        self._wl_cache_time = 0.0
         
         self._last_refresh_time = 0.0
 
@@ -583,7 +593,8 @@ class OpenDotaClient:
                 return f"🏅 Rank của {name}: {rank_str} | Trình độ: {pct_str} thế giới (cao hơn {better_than_str} người chơi)"
 
             return f"🏅 Rank hiện tại của {name}: {rank_str}"
-        except Exception:
+        except Exception as e:
+            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_today_message(self) -> str:
@@ -664,7 +675,8 @@ class OpenDotaClient:
                 hero_str += "..."
 
             return base_msg + hero_str
-        except Exception:
+        except Exception as e:
+            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     @staticmethod
@@ -694,7 +706,8 @@ class OpenDotaClient:
             if won_first:
                 return f"🔥 Đang thắng {streak} trận liên tiếp | Trận gần nhất: {hero} ({kda})"
             return f"💀 Đang thua {streak} trận liên tiếp | Trận gần nhất: {hero} ({kda})"
-        except Exception:
+        except Exception as e:
+            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_recent_message(self, count: int = 10) -> str:
@@ -710,7 +723,8 @@ class OpenDotaClient:
             results = ["W" if self._is_win(m) else "L" for m in reversed(recent)]
             wins = results.count("W")
             return f"📊 {len(recent)} trận gần nhất: {' '.join(results)} ({wins}W-{len(recent) - wins}L)"
-        except Exception:
+        except Exception as e:
+            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_player_heroes(self, limit: int = 100) -> List[Dict[str, Any]]:
@@ -769,7 +783,8 @@ class OpenDotaClient:
                 wr = (wins / games * 100) if games else 0
                 parts.append(f"{self.get_hero_short_name(h.get('hero_id', 0))} ({games} trận, {wr:.0f}%)")
             return "🏆 Tướng tủ (100 trận gần nhất): " + " | ".join(parts)
-        except Exception:
+        except Exception as e:
+            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_player_peers(self, limit: int = 100) -> List[Dict[str, Any]]:
@@ -821,7 +836,8 @@ class OpenDotaClient:
                 name = p.get("personaname") or f"Player {p.get('account_id', 0)}"
                 parts.append(f"{name} ({games} trận, {wins}W)")
             return "👥 Hay duo với (100 trận gần nhất): " + " | ".join(parts)
-        except Exception:
+        except Exception as e:
+            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_live_game(self) -> Optional[Dict[str, Any]]:
@@ -943,7 +959,203 @@ class OpenDotaClient:
             if pros_opp:
                 msg += " | Pro đối đầu: " + ", ".join(pros_opp)
             return msg
-        except Exception:
+        except Exception as e:
+            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
+            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+
+    def get_player_totals(self) -> List[Dict[str, Any]]:
+        """Lấy dữ liệu thống kê sự nghiệp từ OpenDota /players/{id}/totals, cache 1h."""
+        now = time.time()
+        if self._totals_cache is not None and (now - self._totals_cache_time < self.cache_ttl_totals):
+            return self._totals_cache
+
+        try:
+            data = self._api_get(f"players/{self.account_id}/totals")
+            if isinstance(data, list):
+                self._totals_cache = data
+                self._totals_cache_time = now
+                return data
+        except Exception as e:
+            logger.warning(f"Lỗi khi lấy totals từ OpenDota: {e}")
+
+        return self._totals_cache or []
+
+    def get_player_wl(self) -> Dict[str, Any]:
+        """Lấy tổng số trận thắng/thua sự nghiệp từ OpenDota /players/{id}/wl, cache 1h."""
+        now = time.time()
+        if self._wl_cache is not None and (now - self._wl_cache_time < self.cache_ttl_wl):
+            return self._wl_cache
+
+        try:
+            data = self._api_get(f"players/{self.account_id}/wl")
+            if isinstance(data, dict):
+                self._wl_cache = data
+                self._wl_cache_time = now
+                return data
+        except Exception as e:
+            logger.warning(f"Lỗi khi lấy wl từ OpenDota: {e}")
+
+        return self._wl_cache or {}
+
+    def get_player_pros(self) -> List[Dict[str, Any]]:
+        """Lấy toàn bộ danh sách Pro Player từng thi đấu cùng hoặc đối đầu từ OpenDota, cache 30p."""
+        now = time.time()
+        if self._pros_cache is not None and (now - self._pros_cache_time < self.cache_ttl_pros):
+            return self._pros_cache
+
+        try:
+            data = self._api_get(f"players/{self.account_id}/pros")
+            if isinstance(data, list):
+                self._pros_cache = data
+                self._pros_cache_time = now
+                return data
+        except Exception as e:
+            logger.warning(f"Lỗi khi lấy pros từ OpenDota: {e}")
+
+        return self._pros_cache or []
+
+    def get_career_message(self) -> str:
+        """Generate response for !career / !totals: thống kê toàn bộ sự nghiệp."""
+        try:
+            player = self.get_player_data()
+            name = player.get("profile", {}).get("personaname", "Streamer")
+
+            wl = self.get_player_wl()
+            w = wl.get("win", 0)
+            l = wl.get("lose", 0)
+            tot_matches = w + l
+            wr = (w / tot_matches * 100.0) if tot_matches else 0.0
+
+            totals_list = self.get_player_totals()
+            totals = {t["field"]: t for t in totals_list}
+
+            dur_secs = totals.get("duration", {}).get("sum", 0)
+            hours = int(dur_secs // 3600)
+            days = hours // 24
+
+            kills = int(totals.get("kills", {}).get("sum", 0))
+            assists = int(totals.get("assists", {}).get("sum", 0))
+            hero_dmg = totals.get("hero_damage", {}).get("sum", 0)
+            dmg_mil = int(hero_dmg // 1000000)
+
+            def _fmt(n: int) -> str:
+                return f"{n:,}".replace(",", ".")
+
+            return (
+                f"📜 Sự nghiệp Dota 2 của {name}: {_fmt(tot_matches)} trận "
+                f"({_fmt(w)}W-{_fmt(l)}L, {wr:.1f}%) | {_fmt(hours)} giờ chơi ({days} ngày đêm) | "
+                f"{_fmt(kills)} Kills, {_fmt(assists)} Assists | {dmg_mil} Triệu sát thương!"
+            )
+        except Exception as e:
+            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
+            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+
+    def get_funfact_message(self) -> str:
+        """Generate response for !funfact / !ditat: các thói quen và số liệu vui trong game."""
+        try:
+            player = self.get_player_data()
+            name = player.get("profile", {}).get("personaname", "Streamer")
+
+            totals_list = self.get_player_totals()
+            totals = {t["field"]: t for t in totals_list}
+
+            apm = totals.get("actions_per_min", {}).get("sum", 0) / max(1, totals.get("actions_per_min", {}).get("n", 1))
+            pings_sum = int(totals.get("pings", {}).get("sum", 0))
+            pings_avg = pings_sum / max(1, totals.get("pings", {}).get("n", 1))
+            rapiers = int(totals.get("purchase_rapier", {}).get("sum", 0))
+            couriers = int(totals.get("courier_kills", {}).get("sum", 0))
+
+            def _fmt(n: int) -> str:
+                return f"{n:,}".replace(",", ".")
+
+            return (
+                f"🎭 Góc Fun Fact của {name}: ⚡ Tốc độ tay ~{apm:.0f} APM | "
+                f"📍 Ping map {_fmt(pings_sum)} lần ({pings_avg:.0f} ping/trận) | "
+                f"🗡️ {rapiers} lần mua Thánh Kiếm Rapier | 🪓 {_fmt(couriers)} con gà bị đồ sát!"
+            )
+        except Exception as e:
+            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
+            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+
+    def get_pro_message(self, query: Optional[str] = None) -> str:
+        """Generate response for !pro <tên>: thống kê tỉ lệ đối đầu với pro player cụ thể."""
+        try:
+            pros = self.get_player_pros()
+            if not pros:
+                return "⚠️ Hiện chưa tải được danh sách Pro Player từ OpenDota, vui lòng thử lại sau!"
+
+            if not query or not query.strip():
+                top_pros = sorted(pros, key=lambda x: x.get("games", 0), reverse=True)[:4]
+                items = [f"{p.get('name')} ({p.get('games')} trận)" for p in top_pros if p.get("name")]
+                return (
+                    f"🏆 Top Pro hay gặp: {', '.join(items)}... "
+                    "Gõ '!pro <tên>' (vd: !pro 23savage, !pro topson, !pro skem) để xem tỉ lệ đối đầu!"
+                )
+
+            q_raw = query.strip().lower()
+            PRO_ALIASES = {
+                "crit": "cr1t",
+                "malrine": "malr1ne",
+                "marl1ne": "malr1ne",
+                "23": "23savage",
+                "nts": "nothingtosay",
+                "ana": "ananas$s"
+            }
+            q_target = PRO_ALIASES.get(q_raw, q_raw)
+
+            def _clean(s: str) -> str:
+                return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+            q_clean = _clean(q_target)
+            matched = None
+
+            # 1. Khớp chính xác tên chuẩn
+            for p in pros:
+                if _clean(p.get("name")) == q_clean:
+                    matched = p
+                    break
+
+            # 2. Khớp bắt đầu bằng (prefix)
+            if not matched:
+                for p in pros:
+                    if _clean(p.get("name")).startswith(q_clean):
+                        matched = p
+                        break
+
+            # 3. Khớp chuỗi con trong tên
+            if not matched:
+                for p in pros:
+                    if q_clean in _clean(p.get("name")):
+                        matched = p
+                        break
+
+            # 4. Khớp trong Steam personaname
+            if not matched:
+                for p in pros:
+                    if q_clean in _clean(p.get("personaname")):
+                        matched = p
+                        break
+
+            if not matched:
+                return f"⚠️ Streamer chưa từng thi đấu cùng hoặc đối đầu với pro player nào có tên khớp '{query.strip()}'."
+
+            p_name = matched.get("name") or matched.get("personaname")
+            tag = f" ({matched['team_tag']})" if matched.get("team_tag") else ""
+            tot_g = matched.get("games", 0)
+            w_g = matched.get("with_games", 0)
+            w_w = matched.get("with_win", 0)
+            w_wr = (w_w / w_g * 100.0) if w_g else 0.0
+            a_g = matched.get("against_games", 0)
+            a_w = matched.get("against_win", 0)
+            a_wr = (a_w / a_g * 100.0) if a_g else 0.0
+
+            return (
+                f"⚔️ Streamer vs {p_name}{tag} (tổng {tot_g} trận): "
+                f"Chung team {w_g} trận ({w_w}W-{w_g - w_w}L, {w_wr:.1f}%) | "
+                f"Đối đầu {a_g} trận ({a_w}W-{a_g - a_w}L, {a_wr:.1f}%)"
+            )
+        except Exception as e:
+            logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
 

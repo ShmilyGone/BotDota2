@@ -189,7 +189,12 @@ class YouTubeLiveChatBot:
 
     def handle_command(self, command: str, author_name: str) -> Optional[str]:
         """Process chat command and return response string if applicable."""
-        cmd = command.strip().lower()
+        parts = command.strip().split(maxsplit=1)
+        if not parts:
+            return None
+
+        cmd_raw = parts[0].lower()
+        arg = parts[1].strip() if len(parts) > 1 else ""
         now = time.time()
 
         # Gộp alias về lệnh chuẩn để cooldown + chống trùng lặp không bị
@@ -202,14 +207,19 @@ class YouTubeLiveChatBot:
             "!chuoi": "!streak",
             "!5tran": "!recent",
             "!besthero": "!heroes",
-        }.get(cmd, cmd)
+            "!totals": "!career",
+            "!ditat": "!funfact",
+            "!pros": "!pro",
+        }.get(cmd_raw, cmd_raw)
+
+        rate_key = f"{cmd_key}:{arg.lower()}" if arg else cmd_key
 
         if now - self.last_global_reply_time < self.global_cooldown:
             return None
 
-        if cmd_key in self.last_command_time:
-            if now - self.last_command_time[cmd_key] < self.command_cooldown:
-                logger.info(f"Lệnh '{cmd_key}' đang trong thời gian chờ (cooldown). Bỏ qua.")
+        if rate_key in self.last_command_time:
+            if now - self.last_command_time[rate_key] < self.command_cooldown:
+                logger.info(f"Lệnh '{rate_key}' đang trong thời gian chờ (cooldown). Bỏ qua.")
                 return None
 
         reply = None
@@ -228,8 +238,14 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_mate_message()
         elif cmd_key in ["!live"]:
             reply = self.dota.get_live_message()
+        elif cmd_key in ["!career"]:
+            reply = self.dota.get_career_message()
+        elif cmd_key in ["!funfact"]:
+            reply = self.dota.get_funfact_message()
+        elif cmd_key in ["!pro"]:
+            reply = self.dota.get_pro_message(arg)
         elif cmd_key in ["!help"]:
-            reply = "📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live."
+            reply = "📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live, !pro <tên>, !career, !funfact."
 
         if reply:
             # Chống trùng lặp: nếu câu trả lời giống hệt lần đã gửi gần đây
@@ -237,18 +253,18 @@ class YouTubeLiveChatBot:
             # Không cập nhật last_reply_time ở đây để cửa sổ 3 phút không bị
             # kéo dài vô hạn khi có người gõ lệnh liên tục.
             if (
-                self.last_reply.get(cmd_key) == reply
-                and now - self.last_reply_time.get(cmd_key, 0) < self.dedup_window
+                self.last_reply.get(rate_key) == reply
+                and now - self.last_reply_time.get(rate_key, 0) < self.dedup_window
             ):
                 logger.info(
-                    f"Lệnh '{cmd_key}' trả về nội dung giống lần trước "
+                    f"Lệnh '{rate_key}' trả về nội dung giống lần trước "
                     f"(trong {self.dedup_window:.0f}s), bỏ qua để tiết kiệm quota."
                 )
-                self.last_command_time[cmd_key] = now
+                self.last_command_time[rate_key] = now
                 return None
-            self.last_reply[cmd_key] = reply
-            self.last_reply_time[cmd_key] = now
-            self.last_command_time[cmd_key] = now
+            self.last_reply[rate_key] = reply
+            self.last_reply_time[rate_key] = now
+            self.last_command_time[rate_key] = now
             return reply
         return None
 

@@ -30,12 +30,15 @@ def run_terminal_test(dota_client: OpenDotaClient):
     print(f"Player ID: {dota_client.account_id}")
     print("Gõ một lệnh bất kỳ để thử nghiệm (hoặc 'exit' để thoát):")
     print("  !today     - Kết quả thi đấu hôm nay (ca stream)")
-    print("  !rank      - Rank hiện tại")
+    print("  !rank      - Rank hiện tại (kèm % thế giới)")
     print("  !streak    - Chuỗi thắng/thua hiện tại")
     print("  !recent    - Kết quả 10 trận gần nhất")
     print("  !heroes    - Tướng tủ trong 100 trận gần nhất")
     print("  !mate      - Hay duo với ai trong 100 trận gần nhất")
     print("  !live      - Trận đang diễn ra của streamer")
+    print("  !pro <tên> - Thống kê đối đầu với pro player (vd: !pro 23savage, !pro skem)")
+    print("  !career    - Tổng quan toàn bộ sự nghiệp Dota 2")
+    print("  !funfact   - Góc vui: APM, số lần ping map, Thánh kiếm, gà bị giết")
     print("  !help      - Trợ giúp")
     print("=" * 60)
 
@@ -48,25 +51,34 @@ def run_terminal_test(dota_client: OpenDotaClient):
                 print("Tạm biệt!")
                 break
             
-            cmd_lower = cmd.lower()
-            if cmd_lower in ["!today", "!homnay"]:
+            parts = cmd.split(maxsplit=1)
+            cmd_name = parts[0].lower()
+            arg = parts[1].strip() if len(parts) > 1 else ""
+
+            if cmd_name in ["!today", "!homnay"]:
                 print(dota_client.get_today_message())
-            elif cmd_lower in ["!rank"]:
+            elif cmd_name in ["!rank"]:
                 print(dota_client.get_rank_message())
-            elif cmd_lower in ["!streak", "!chuoi"]:
+            elif cmd_name in ["!streak", "!chuoi"]:
                 print(dota_client.get_streak_message())
-            elif cmd_lower in ["!recent", "!5tran"]:
+            elif cmd_name in ["!recent", "!5tran"]:
                 print(dota_client.get_recent_message())
-            elif cmd_lower in ["!heroes", "!besthero"]:
+            elif cmd_name in ["!heroes", "!besthero"]:
                 print(dota_client.get_heroes_message())
-            elif cmd_lower in ["!mate"]:
+            elif cmd_name in ["!mate"]:
                 print(dota_client.get_mate_message())
-            elif cmd_lower in ["!live"]:
+            elif cmd_name in ["!live"]:
                 print(dota_client.get_live_message())
-            elif cmd_lower in ["!help", "!lenh"]:
-                print("📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live")
+            elif cmd_name in ["!pro", "!pros"]:
+                print(dota_client.get_pro_message(arg))
+            elif cmd_name in ["!career", "!totals"]:
+                print(dota_client.get_career_message())
+            elif cmd_name in ["!funfact", "!ditat"]:
+                print(dota_client.get_funfact_message())
+            elif cmd_name in ["!help", "!lenh"]:
+                print("📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live, !pro <tên>, !career, !funfact")
             else:
-                print(f"❓ Không nhận diện được lệnh '{cmd}'. Thử: !today, !rank, !streak, !recent, !heroes, !mate, !live")
+                print(f"❓ Không nhận diện được lệnh '{cmd}'. Thử: !today, !rank, !pro 23savage, !career, !funfact")
         except (KeyboardInterrupt, EOFError):
             print("\nĐã thoát chế độ test.")
             break

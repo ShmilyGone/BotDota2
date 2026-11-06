@@ -18,7 +18,10 @@ Bot tự động lắng nghe live chat trên YouTube và phản hồi thông tin
 | `!heroes` hoặc `!besthero` | Top 3 tướng hay chơi nhất trong 100 trận gần nhất của streamer (số trận, winrate) | `🏆 Tướng tủ (100 trận gần nhất): OD (40 trận, 70%) \| Ember (30 trận, 60%)` |
 | `!mate` | Top 3 người hay duo cùng nhất trong 100 trận gần nhất (số trận cùng đội, số trận thắng khi duo) | `👥 Hay duo với (100 trận gần nhất): ABC (24 trận, 14W)` |
 | `!live` | Trận đang diễn ra: phút thi đấu + tỉ lệ thắng ước tính từ chênh vàng/kill (công thức heuristic, không phải Dota Plus) + chênh vàng theo góc streamer ("Dẫn/Kém …k vàng"), kèm tên pro trong trận nếu có. Lọc trận cũ đã kết thúc trong `/live` theo `last_update_time` mới nhất (quá 5 phút không cập nhật thì coi như hết trận). Nếu không thấy trong top 100 thì báo rõ là có thể đang đánh nhưng trận không lọt top 100, thay vì báo là không đang đánh | `🔴 Đang đánh (28:09): ước tính thắng ~79% \| Dẫn 19k vàng` |
-| `!help` hoặc `!lenh` | Hiển thị danh sách các lệnh có sẵn | `📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live` |
+| `!pro <tên>` | Thống kê tỉ lệ đối đầu / chung team với một Pro Player cụ thể (hơn 300+ pro như 23savage, topson, skem, zeal...). Nếu không nhập tên sẽ gợi ý top pro hay gặp | `⚔️ Streamer vs 23savage (Xipto) (tổng 264 trận): Chung team 98 trận (67W-31L, 68.4%) \| Đối đầu 166 trận (70W-96L, 42.2%)` |
+| `!career` hoặc `!totals` | Thống kê toàn bộ sự nghiệp Dota 2: Tổng số trận, số giờ chơi, số kills, assists, tổng lượng sát thương | `📜 Sự nghiệp Dota 2 của To the Moon and not back: 16.845 trận (8.685W-8.160L, 51.6%) \| 9.736 giờ chơi (405 ngày đêm) \| 136.933 Kills \| 309 Triệu sát thương!` |
+| `!funfact` hoặc `!ditat` | Các thói quen "dị" trong game: Tốc độ tay (APM), số lần ping map, số lần mua Thánh Kiếm (Rapier), số gà bị giết | `🎭 Góc Fun Fact của To the Moon and not back: ⚡ Tốc độ tay ~298 APM \| 📍 Ping map 471.669 lần (57 ping/trận) \| 🗡️ 102 lần mua Thánh Kiếm Rapier \| 🪓 2.579 con gà bị đồ sát!` |
+| `!help` hoặc `!lenh` | Hiển thị danh sách các lệnh có sẵn | `📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live, !pro <tên>, !career, !funfact` |
 
 ---
 
