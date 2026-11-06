@@ -2,9 +2,9 @@ import os
 import sys
 import time
 import re
-import urllib.request
 import logging
 from typing import Optional, Set, Dict
+import requests
 import pytchat
 
 from opendota_client import OpenDotaClient
@@ -34,24 +34,24 @@ def resolve_channel_live_video(target_channel: str) -> Optional[str]:
     else:
         base_url = target.rstrip("/")
 
-    headers = {
+    session = requests.Session()
+    session.headers.update({
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
-        "Cookie": "SOCS=CAESEwgDEgk0ODE3Nzk3MjQaAmVuIAEaBgiA_LyaBg",
-    }
+    })
+    session.cookies.set("SOCS", "CAESEwgDEgk0ODE3Nzk3MjQaAmVuIAEaBgiA_LyaBg", domain=".youtube.com")
+    session.cookies.set("CONSENT", "PENDING+999", domain=".youtube.com")
 
     # 1. First attempt: check /live endpoint
-    url = f"{base_url}/live"
+    url_live = f"{base_url}/live"
     try:
-        req = urllib.request.Request(url, headers=headers)
-        resp = urllib.request.urlopen(req, timeout=10)
-        final_url = resp.geturl()
-        html = resp.read().decode("utf-8", errors="ignore")
-
+        r = session.get(url_live, timeout=10, allow_redirects=True)
+        html = r.text
         cand_id = None
+
         # Check if URL redirected directly to watch?v=XYZ
-        m_url = re.search(r'[?&]v=([a-zA-Z0-9_-]{11})', final_url)
+        m_url = re.search(r'[?&]v=([a-zA-Z0-9_-]{11})', r.url)
         if m_url:
             cand_id = m_url.group(1)
 
@@ -73,27 +73,32 @@ def resolve_channel_live_video(target_channel: str) -> Optional[str]:
                 '"isLive":true' in html
                 or '"isLiveNow":true' in html
                 or '"isLiveContent":true' in html
-                or '"style":"LIVE"' in html
+                or 'THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE' in html
                 or 'liveStreamabilityRenderer' in html
             )
             if is_live:
                 return cand_id
     except Exception as e:
-        logger.warning(f"Không thể quét trực tiếp link '{url}': {e}")
+        logger.warning(f"Không thể quét trực tiếp link '{url_live}': {e}")
 
     # 2. Second attempt: check /streams tab to find current live broadcast
     url_streams = f"{base_url}/streams"
     try:
-        req_s = urllib.request.Request(url_streams, headers=headers)
-        resp_s = urllib.request.urlopen(req_s, timeout=10)
-        html_s = resp_s.read().decode("utf-8", errors="ignore")
+        r_s = session.get(url_streams, timeout=10)
+        html_s = r_s.text
 
-        m_live = re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"[^}]+?"style":"LIVE"', html_s)
-        if m_live:
-            return m_live.group(1)
-        m_live2 = re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"[^}]+?LIVE_NOW', html_s)
-        if m_live2:
-            return m_live2.group(1)
+        patterns = [
+            r'badgeStyle":"THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE","animationActivationTargetId":"([a-zA-Z0-9_-]{11})"',
+            r'"animationActivationTargetId":"([a-zA-Z0-9_-]{11})"[^}]+?THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE',
+            r'/vi/([a-zA-Z0-9_-]{11})/[^"]*?\.jpg[^}]+?THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE',
+            r'([a-zA-Z0-9_-]{11})[^\n]+?THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE',
+            r'"videoId":"([a-zA-Z0-9_-]{11})"[^}]+?"style":"LIVE"',
+            r'"videoId":"([a-zA-Z0-9_-]{11})"[^}]+?LIVE_NOW',
+        ]
+        for p in patterns:
+            m = re.search(p, html_s)
+            if m:
+                return m.group(1)
     except Exception as e:
         logger.warning(f"Không thể quét tab streams '{url_streams}': {e}")
 
