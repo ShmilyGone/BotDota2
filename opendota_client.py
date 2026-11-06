@@ -220,7 +220,6 @@ class OpenDotaClient:
         self._wl_cache: Optional[Dict[str, Any]] = None
         self._wl_cache_time = 0.0
         self._last_funfact_idx: int = -1
-        self._last_career_idx: int = -1
         
         self._last_refresh_time = 0.0
 
@@ -1018,83 +1017,37 @@ class OpenDotaClient:
         return self._pros_cache or []
 
     def get_career_message(self) -> str:
-        """Generate response for !career / !totals: ngẫu nhiên 1 trong 7 góc nhìn sự nghiệp độc đáo."""
+        """Generate response for !career / !totals: thống kê toàn bộ sự nghiệp."""
         try:
             player = self.get_player_data()
-            raw_name = player.get("profile", {}).get("personaname", "Streamer")
-            name = (raw_name[:25] + "..") if len(raw_name) > 28 else raw_name
+            name = player.get("profile", {}).get("personaname", "Streamer")
 
             wl = self.get_player_wl()
             w = wl.get("win", 0)
             l = wl.get("lose", 0)
             tot_matches = w + l
             wr = (w / tot_matches * 100.0) if tot_matches else 0.0
-            diff_win = w - l
 
             totals_list = self.get_player_totals()
-            if not totals_list:
-                return "⚠️ Hiện chưa tải được thống kê sự nghiệp từ OpenDota, vui lòng thử lại sau!"
             totals = {t["field"]: t for t in totals_list}
-
-            def _fmt(n: int) -> str:
-                return f"{n:,}".replace(",", ".")
 
             dur_secs = totals.get("duration", {}).get("sum", 0)
             hours = int(dur_secs // 3600)
             days = hours // 24
-            avg_match_min = round((dur_secs / max(1, tot_matches)) / 60.0, 1)
 
             kills = int(totals.get("kills", {}).get("sum", 0))
-            deaths = int(totals.get("deaths", {}).get("sum", 0))
             assists = int(totals.get("assists", {}).get("sum", 0))
-            kda_avg = totals.get("kda", {}).get("sum", 0) / max(1, totals.get("kda", {}).get("n", 1))
-            kills_avg = kills / max(1, tot_matches)
-            assists_avg = assists / max(1, tot_matches)
-            tot_kp = kills + assists
-
             hero_dmg = totals.get("hero_damage", {}).get("sum", 0)
             dmg_mil = int(hero_dmg // 1000000)
-            dmg_avg = int(hero_dmg // max(1, tot_matches))
 
-            tower_dmg = totals.get("tower_damage", {}).get("sum", 0)
-            tower_dmg_mil = round(tower_dmg / 1000000.0, 1)
-            towers = int(totals.get("tower_kills", {}).get("sum", 0))
+            def _fmt(n: int) -> str:
+                return f"{n:,}".replace(",", ".")
 
-            healing = totals.get("hero_healing", {}).get("sum", 0)
-            healing_mil = round(healing / 1000000.0, 1)
-            stuns_sec = int(totals.get("stuns", {}).get("sum", 0))
-            stuns_hours = round(stuns_sec / 3600.0, 1)
-
-            last_hits = int(totals.get("last_hits", {}).get("sum", 0))
-            lh_avg = int(last_hits // max(1, tot_matches))
-            denies = int(totals.get("denies", {}).get("sum", 0))
-            denies_avg = round(denies / max(1, tot_matches), 1)
-
-            gpm = int(totals.get("gold_per_min", {}).get("sum", 0) / max(1, totals.get("gold_per_min", {}).get("n", 1)))
-            xpm = int(totals.get("xp_per_min", {}).get("sum", 0) / max(1, totals.get("xp_per_min", {}).get("n", 1)))
-            lane_eff = totals.get("lane_efficiency_pct", {}).get("sum", 0) / max(1, totals.get("lane_efficiency_pct", {}).get("n", 1))
-
-            career_angles = [
-                # 1. Tổng quan sự nghiệp
-                f"📜 Sự nghiệp của {name}: {_fmt(tot_matches)} trận ({_fmt(w)}W-{_fmt(l)}L, {wr:.1f}%) | {_fmt(hours)} giờ chơi ({days} ngày đêm) | {_fmt(kills)} Kills, {_fmt(assists)} Assists | {dmg_mil} Triệu sát thương!",
-                # 2. Combat & Đồ sát
-                f"⚔️ Đồ sát của {name}: {_fmt(tot_kp)} lần tham gia hạ gục ({_fmt(kills)} Kills, {_fmt(assists)} Assists) | KDA trung bình {kda_avg:.2f} ({kills_avg:.1f}K/{assists_avg:.1f}A) | ~{_fmt(dmg_avg)} dmg/trận!",
-                # 3. Kinh tế & Farm
-                f"💰 Kinh tế của {name}: Farm {_fmt(last_hits)} creep ({lh_avg}/trận) | Deny {_fmt(denies)} lính ({denies_avg}/trận) | GPM trung bình {gpm} - XPM {xpm} | Hiệu suất đi lane {lane_eff:.1f}%!",
-                # 4. Thâm niên chơi
-                f"⏱️ Thâm niên của {name}: {_fmt(hours)} giờ chơi ({days} ngày đêm) qua {_fmt(tot_matches)} trận (tb {avg_match_min}p/trận) — tương đương hơn 3 năm cày game 8 tiếng/ngày không nghỉ!",
-                # 5. Công thành & Phá huỷ
-                f"💥 Công thành của {name}: Gây {tower_dmg_mil} Triệu sát thương công trình và đập tan {_fmt(towers)} trụ của đối phương | Gây {dmg_mil} Triệu sát thương lên hero!",
-                # 6. Teamwork & Hỗ trợ
-                f"🛡️ Đóng góp Team của {name}: {_fmt(assists)} pha kiến tạo Assists ({assists_avg:.1f}/trận) | Stun đối thủ {_fmt(stuns_sec)} giây (~{stuns_hours} giờ) | Hồi {healing_mil} Triệu máu cho đồng đội!",
-                # 7. Winrate & Phong độ
-                f"🏆 Phong độ của {name}: Thắng {_fmt(w)} trận (dương +{_fmt(diff_win)} trận thắng, {wr:.1f}%) sau {_fmt(tot_matches)} trận, duy trì đỉnh cao rank Immortal suốt nhiều năm!"
-            ]
-
-            available = [i for i in range(len(career_angles)) if i != self._last_career_idx]
-            chosen_idx = random.choice(available) if available else 0
-            self._last_career_idx = chosen_idx
-            return career_angles[chosen_idx]
+            return (
+                f"📜 Sự nghiệp Dota 2 của {name}: {_fmt(tot_matches)} trận "
+                f"({_fmt(w)}W-{_fmt(l)}L, {wr:.1f}%) | {_fmt(hours)} giờ chơi ({days} ngày đêm) | "
+                f"{_fmt(kills)} Kills, {_fmt(assists)} Assists | {dmg_mil} Triệu sát thương!"
+            )
         except Exception as e:
             logger.error(f"Lỗi trong get_career_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
