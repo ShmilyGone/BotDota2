@@ -199,12 +199,15 @@ class OpenDotaClient:
         self.cache_ttl_player_heroes = 300.0
         self.cache_ttl_player_peers = 300.0
         self.cache_ttl_live = 60.0
+        self.cache_ttl_distributions = 86400.0  # 24 hours
         self._player_heroes_cache: Optional[List[Dict[str, Any]]] = None
         self._player_heroes_cache_time = 0.0
         self._player_peers_cache: Optional[List[Dict[str, Any]]] = None
         self._player_peers_cache_time = 0.0
         self._live_cache: Optional[List[Dict[str, Any]]] = None
         self._live_cache_time = 0.0
+        self._distributions_cache: Optional[Dict[str, Any]] = None
+        self._distributions_cache_time = 0.0
         
         self._last_refresh_time = 0.0
 
@@ -510,6 +513,54 @@ class OpenDotaClient:
             return f"{tier_name} [{stars}★]"
         return tier_name
 
+    def get_distributions(self) -> Optional[Dict[str, Any]]:
+        """Lấy dữ liệu phân bố rank toàn cầu từ OpenDota /distributions, cache 24h."""
+        now = time.time()
+        if self._distributions_cache is not None and (now - self._distributions_cache_time < self.cache_ttl_distributions):
+            return self._distributions_cache
+
+        try:
+            data = self._api_get("distributions")
+            if isinstance(data, dict) and "ranks" in data:
+                self._distributions_cache = data
+                self._distributions_cache_time = now
+                return data
+        except Exception as e:
+            logger.warning(f"Lỗi khi lấy distributions từ OpenDota: {e}")
+
+        return self._distributions_cache
+
+    def get_rank_percentile(self, rank_tier: Optional[int], leaderboard_rank: Optional[int] = None) -> Optional[float]:
+        """Tính streamer thuộc Top bao nhiêu % thế giới dựa trên bảng /distributions."""
+        if not rank_tier:
+            return None
+
+        dist = self.get_distributions()
+        if not dist:
+            return None
+
+        ranks_data = dist.get("ranks", {})
+        total = ranks_data.get("sum", {}).get("count") or 0
+        if total <= 0:
+            return None
+
+        # Trường hợp Immortal có số Leaderboard
+        if rank_tier >= 80 and leaderboard_rank:
+            # 4 divisions chính của Valve (EU, CN, SEA, Americas) -> ước lượng rank toàn cầu tối đa ~ leaderboard_rank * 4
+            est_global_rank = leaderboard_rank * 4
+            top_pct = max(0.01, (est_global_rank / total) * 100.0)
+            return top_pct
+
+        rows = {r.get("bin"): r for r in ranks_data.get("rows", []) if r.get("bin") is not None}
+        if rank_tier in rows:
+            row = rows[rank_tier]
+            cum = row.get("cumulative_sum", 0)
+            count = row.get("count", 0)
+            top_pct = max(0.01, ((total - cum + count) / total) * 100.0)
+            return top_pct
+
+        return None
+
     def get_rank_message(self) -> str:
         """Generate response for !rank command."""
         try:
@@ -520,6 +571,17 @@ class OpenDotaClient:
             leaderboard_rank = player.get("leaderboard_rank")
             
             rank_str = self.format_rank(rank_tier, leaderboard_rank)
+            pct = self.get_rank_percentile(rank_tier, leaderboard_rank)
+
+            if pct is not None:
+                if pct < 0.1:
+                    pct_str = f"Top {pct:.2f}%"
+                    better_than_str = f"{100.0 - pct:.2f}%"
+                else:
+                    pct_str = f"Top {pct:.1f}%"
+                    better_than_str = f"{100.0 - pct:.1f}%"
+                return f"🏅 Rank của {name}: {rank_str} | Trình độ: {pct_str} thế giới (cao hơn {better_than_str} người chơi)"
+
             return f"🏅 Rank hiện tại của {name}: {rank_str}"
         except Exception:
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"

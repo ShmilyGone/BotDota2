@@ -12,7 +12,7 @@ Bot tự động lắng nghe live chat trên YouTube và phản hồi thông tin
 | Lệnh | Mô tả | Ví dụ kết quả phản hồi |
 | :--- | :--- | :--- |
 | `!today` hoặc `!homnay` | Thống kê kết quả thi đấu trong ngày hôm nay, chỉ tính trận bắt đầu từ 0h hôm nay theo múi giờ đã cấu hình (Thắng/Thua, Winrate, Tướng chơi, Trận vừa kết thúc) | `🔥 Hôm nay (05/11): 4W - 2L (66.7%) \| Trận vừa xong: Outworld Devourer (16/2/10) Thắng ✅ \| Tướng: Outworld Devourer (1W-0L), Ember Spirit (1W-0L)...` |
-| `!rank` | Xem medal/rank hiện tại của streamer | `🏅 Rank hiện tại của To the Moon and not back: Immortal (Top #215)` |
+| `!rank` | Xem medal/rank hiện tại của streamer kèm xếp hạng % thế giới (Percentile từ OpenDota `/distributions`) | `🏅 Rank của To the Moon and not back: Immortal (Top #154) \| Trình độ: Top 0.01% thế giới (cao hơn 99.99% người chơi)` |
 | `!streak` hoặc `!chuoi` | Chuỗi thắng/thua hiện tại, tính từ các trận gần nhất | `🔥 Đang thắng 4 trận liên tiếp \| Trận gần nhất: OD (16/2/10)` |
 | `!recent` hoặc `!5tran` | Kết quả 10 trận gần nhất, theo thứ tự thời gian | `📊 10 trận gần nhất: W W L W W L W W W L (7W-3L)` |
 | `!heroes` hoặc `!besthero` | Top 3 tướng hay chơi nhất trong 100 trận gần nhất của streamer (số trận, winrate) | `🏆 Tướng tủ (100 trận gần nhất): OD (40 trận, 70%) \| Ember (30 trận, 60%)` |
