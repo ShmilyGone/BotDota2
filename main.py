@@ -31,9 +31,11 @@ def run_terminal_test(dota_client: OpenDotaClient):
     print("Gõ một lệnh bất kỳ để thử nghiệm (hoặc 'exit' để thoát):")
     print("  !today     - Kết quả thi đấu hôm nay (ca stream)")
     print("  !rank      - Rank hiện tại")
-    print("  !mmr       - Thông tin MMR / Bảng xếp hạng")
-    print("  !lastmatch - Chi tiết trận đấu vừa xong")
-    print("  !profile   - Link Dotabuff / OpenDota")
+    print("  !streak    - Chuỗi thắng/thua hiện tại")
+    print("  !recent    - Kết quả 10 trận gần nhất")
+    print("  !heroes    - Tướng tủ trong 100 trận gần nhất")
+    print("  !mate      - Hay duo với ai trong 100 trận gần nhất")
+    print("  !live      - Trận đang diễn ra của streamer")
     print("  !help      - Trợ giúp")
     print("=" * 60)
 
@@ -51,16 +53,20 @@ def run_terminal_test(dota_client: OpenDotaClient):
                 print(dota_client.get_today_message())
             elif cmd_lower in ["!rank"]:
                 print(dota_client.get_rank_message())
-            elif cmd_lower in ["!mmr"]:
-                print(dota_client.get_mmr_message())
-            elif cmd_lower in ["!lastmatch", "!last"]:
-                print(dota_client.get_last_match_message())
-            elif cmd_lower in ["!dotabuff", "!profile", "!opendota"]:
-                print(dota_client.get_profile_message())
+            elif cmd_lower in ["!streak", "!chuoi"]:
+                print(dota_client.get_streak_message())
+            elif cmd_lower in ["!recent", "!5tran"]:
+                print(dota_client.get_recent_message())
+            elif cmd_lower in ["!heroes", "!besthero"]:
+                print(dota_client.get_heroes_message())
+            elif cmd_lower in ["!mate"]:
+                print(dota_client.get_mate_message())
+            elif cmd_lower in ["!live"]:
+                print(dota_client.get_live_message())
             elif cmd_lower in ["!help", "!lenh"]:
-                print("📜 Lệnh có sẵn: !today, !rank, !mmr, !lastmatch, !profile")
+                print("📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live")
             else:
-                print(f"❓ Không nhận diện được lệnh '{cmd}'. Thử: !today, !rank, !mmr")
+                print(f"❓ Không nhận diện được lệnh '{cmd}'. Thử: !today, !rank, !streak, !recent, !heroes, !mate, !live")
         except (KeyboardInterrupt, EOFError):
             print("\nĐã thoát chế độ test.")
             break
@@ -75,8 +81,9 @@ def main():
     parser.add_argument("--account-id", type=str, default=os.getenv("DOTA_ACCOUNT_ID", "196931374"), help="Dota 2 Steam Account ID (mặc định: 196931374)")
     parser.add_argument("--channel", type=str, default=os.getenv("TARGET_CHANNEL", "@DHDota2"), help="Kênh livestream mục tiêu (vd: @DHDota2 hoặc link kênh)")
     parser.add_argument("--video-id", type=str, default=os.getenv("YOUTUBE_VIDEO_ID", None), help="ID của video livestream YouTube (vd: IuM8Nhptdy4)")
-    parser.add_argument("--manual-mmr", type=str, default=os.getenv("MANUAL_MMR", None), help="MMR thực tế của streamer nếu muốn hiển thị cụ thể (vd: 10500)")
-    parser.add_argument("--cooldown", type=float, default=float(os.getenv("COMMAND_COOLDOWN", "8.0")), help="Thời gian hồi lệnh (giây)")
+    parser.add_argument("--cooldown", type=float, default=float(os.getenv("COMMAND_COOLDOWN", "20.0")), help="Thời gian hồi mỗi lệnh (giây)")
+    parser.add_argument("--global-cooldown", type=float, default=float(os.getenv("GLOBAL_COOLDOWN", "10.0")), help="Thời gian hồi chung giữa mọi tin trả lời (giây)")
+    parser.add_argument("--dedup-window", type=float, default=float(os.getenv("DEDUP_WINDOW_SECONDS", "180.0")), help="Trong bao nhiêu giây thì câu trả lời giống hệt lần trước sẽ bị bỏ qua (giây)")
     
     args = parser.parse_args()
 
@@ -104,7 +111,6 @@ def main():
         steam_api_key=steam_api_key,
         stratz_api_token=stratz_api_token,
         tz_offset_hours=tz_offset,
-        manual_mmr=args.manual_mmr,
         session_gap_hours=session_gap
     )
 
@@ -131,7 +137,9 @@ def main():
         account_pool=pool,
         target_channel=args.channel,
         video_id=args.video_id,
-        command_cooldown=args.cooldown
+        command_cooldown=args.cooldown,
+        global_cooldown=args.global_cooldown,
+        dedup_window=args.dedup_window
     )
 
     bot.start_polling()

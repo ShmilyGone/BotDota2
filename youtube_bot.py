@@ -63,8 +63,9 @@ class YouTubeLiveChatBot:
         account_pool: Optional[AccountPool] = None,
         target_channel: Optional[str] = None,
         video_id: Optional[str] = None,
-        command_cooldown: float = 8.0,
-        global_cooldown: float = 3.0
+        command_cooldown: float = 20.0,
+        global_cooldown: float = 10.0,
+        dedup_window: float = 180.0
     ):
         self.dota = dota_client
         self.account_pool = account_pool or AccountPool()
@@ -72,13 +73,20 @@ class YouTubeLiveChatBot:
         self.video_id = extract_video_id(video_id) if video_id else None
         self.command_cooldown = command_cooldown
         self.global_cooldown = global_cooldown
-        
+        # Trong bao lâu thì một câu trả lời giống hệt lần trước sẽ bị bỏ qua
+        # (180s = 3 phút: đủ để chặn spam lặp lại, nhưng viewer mới vào sau
+        # đó vẫn nhận được câu trả lời).
+        self.dedup_window = dedup_window
+
         self.live_chat_id: Optional[str] = None
         self.current_video_id: Optional[str] = None
-        
+
         # Cooldown trackers
         self.last_command_time = {}
         self.last_global_reply_time = 0.0
+        # Chống trùng lặp: câu trả lời đã gửi gần nhất cho từng lệnh + thời điểm gửi
+        self.last_reply = {}
+        self.last_reply_time = {}
 
     def authenticate(self, interactive: bool = False):
         """Authenticate all accounts in the pool."""
@@ -108,31 +116,63 @@ class YouTubeLiveChatBot:
         cmd = command.strip().lower()
         now = time.time()
 
+        # Gộp alias về lệnh chuẩn để cooldown + chống trùng lặp không bị
+        # lách qua bằng cách gõ !homnay thay cho !today, !lenh thay cho !help, ...
+        cmd_key = {
+            "!homnay": "!today",
+            "!lenh": "!help",
+            "!bot": "!help",
+            "!commands": "!help",
+            "!chuoi": "!streak",
+            "!5tran": "!recent",
+            "!besthero": "!heroes",
+        }.get(cmd, cmd)
+
         if now - self.last_global_reply_time < self.global_cooldown:
             return None
 
-        if cmd in self.last_command_time:
-            if now - self.last_command_time[cmd] < self.command_cooldown:
-                logger.info(f"Lệnh '{cmd}' đang trong thời gian chờ (cooldown). Bỏ qua.")
+        if cmd_key in self.last_command_time:
+            if now - self.last_command_time[cmd_key] < self.command_cooldown:
+                logger.info(f"Lệnh '{cmd_key}' đang trong thời gian chờ (cooldown). Bỏ qua.")
                 return None
 
         reply = None
 
-        if cmd in ["!today", "!homnay"]:
+        if cmd_key in ["!today"]:
             reply = self.dota.get_today_message()
-        elif cmd in ["!rank"]:
+        elif cmd_key in ["!rank"]:
             reply = self.dota.get_rank_message()
-        elif cmd in ["!mmr"]:
-            reply = self.dota.get_mmr_message()
-        elif cmd in ["!lastmatch", "!last", "!tran"]:
-            reply = self.dota.get_last_match_message()
-        elif cmd in ["!dotabuff", "!profile", "!opendota", "!player", "!players", "!thongtin"]:
-            reply = self.dota.get_profile_message()
-        elif cmd in ["!help", "!lenh", "!bot", "!commands"]:
-            reply = "📜 Lệnh có sẵn: !today (kết quả ca stream hôm nay), !rank (rank hiện tại), !mmr (thông tin MMR), !lastmatch (trận vừa xong), !profile (link Dotabuff)."
+        elif cmd_key in ["!streak"]:
+            reply = self.dota.get_streak_message()
+        elif cmd_key in ["!recent"]:
+            reply = self.dota.get_recent_message()
+        elif cmd_key in ["!heroes"]:
+            reply = self.dota.get_heroes_message()
+        elif cmd_key in ["!mate"]:
+            reply = self.dota.get_mate_message()
+        elif cmd_key in ["!live"]:
+            reply = self.dota.get_live_message()
+        elif cmd_key in ["!help"]:
+            reply = "📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live."
 
         if reply:
-            self.last_command_time[cmd] = now
+            # Chống trùng lặp: nếu câu trả lời giống hệt lần đã gửi gần đây
+            # (trong dedup_window) thì bỏ qua, tiết kiệm 20 quota units/tin.
+            # Không cập nhật last_reply_time ở đây để cửa sổ 3 phút không bị
+            # kéo dài vô hạn khi có người gõ lệnh liên tục.
+            if (
+                self.last_reply.get(cmd_key) == reply
+                and now - self.last_reply_time.get(cmd_key, 0) < self.dedup_window
+            ):
+                logger.info(
+                    f"Lệnh '{cmd_key}' trả về nội dung giống lần trước "
+                    f"(trong {self.dedup_window:.0f}s), bỏ qua để tiết kiệm quota."
+                )
+                self.last_command_time[cmd_key] = now
+                return None
+            self.last_reply[cmd_key] = reply
+            self.last_reply_time[cmd_key] = now
+            self.last_command_time[cmd_key] = now
             return reply
         return None
 

@@ -1,3 +1,4 @@
+import math
 import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List
@@ -159,7 +160,6 @@ class OpenDotaClient:
         steam_api_key: Optional[str] = None,
         stratz_api_token: Optional[str] = None,
         tz_offset_hours: int = 7,
-        manual_mmr: Optional[str] = None,
         session_gap_hours: float = 5.0
     ):
         self.account_id = str(account_id)
@@ -167,7 +167,6 @@ class OpenDotaClient:
         self.steam_api_key = steam_api_key
         self.stratz_api_token = stratz_api_token
         self.tz = timezone(timedelta(hours=tz_offset_hours))
-        self.manual_mmr = manual_mmr
         self.session_gap_hours = session_gap_hours
         
         # Configure robust HTTP session with automatic retries for dropped connections
@@ -197,6 +196,15 @@ class OpenDotaClient:
         self._matches_cache_time = 0.0
         self.cache_ttl_profile = 60.0
         self.cache_ttl_matches = 20.0
+        self.cache_ttl_player_heroes = 300.0
+        self.cache_ttl_player_peers = 300.0
+        self.cache_ttl_live = 60.0
+        self._player_heroes_cache: Optional[List[Dict[str, Any]]] = None
+        self._player_heroes_cache_time = 0.0
+        self._player_peers_cache: Optional[List[Dict[str, Any]]] = None
+        self._player_peers_cache_time = 0.0
+        self._live_cache: Optional[List[Dict[str, Any]]] = None
+        self._live_cache_time = 0.0
         
         self._last_refresh_time = 0.0
 
@@ -241,7 +249,7 @@ class OpenDotaClient:
         return HERO_ABBREVIATIONS.get(full_name, full_name)
 
     def get_player_data(self, force_refresh: bool = False) -> Dict[str, Any]:
-        """Fetch player profile, rank and MMR estimates with stale cache fallback."""
+        """Fetch player profile and rank with stale cache fallback."""
         now = time.time()
         if not force_refresh and self._profile_cache and (now - self._profile_cache_time < self.cache_ttl_profile):
             return self._profile_cache
@@ -434,6 +442,32 @@ class OpenDotaClient:
 
         return []
 
+    @staticmethod
+    def _start_time_epoch(match: Dict[str, Any]) -> Optional[float]:
+        """Chuẩn hoá start_time về epoch giây (float), hoặc None nếu không đọc được.
+
+        OpenDota/Steam trả về số epoch. STRATZ có thể trả về số epoch hoặc
+        chuỗi ISO 8601, nên xử lý cả hai để lọc theo ngày không bị crash.
+        """
+        value = match.get("start_time")
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            try:
+                return float(value)
+            except ValueError:
+                pass
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                return parsed.timestamp()
+            except ValueError:
+                return None
+        return None
+
     def get_session_matches(self) -> List[Dict[str, Any]]:
         """
         Smart Session Clustering:
@@ -490,39 +524,23 @@ class OpenDotaClient:
         except Exception:
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
-    def get_mmr_message(self) -> str:
-        """Generate response for !mmr command."""
-        try:
-            player = self.get_player_data()
-            profile = player.get("profile", {})
-            name = profile.get("personaname", f"Player {self.account_id}")
-            rank_tier = player.get("rank_tier")
-            leaderboard_rank = player.get("leaderboard_rank")
-            mmr_est = player.get("mmr_estimate", {}).get("estimate")
-
-            rank_str = self.format_rank(rank_tier, leaderboard_rank)
-            parts = [f"📊 {name} | Rank: {rank_str}"]
-            
-            if self.manual_mmr:
-                parts.append(f"MMR thực tế: ~{self.manual_mmr}")
-            elif mmr_est:
-                parts.append(f"Ước tính OpenDota: ~{mmr_est} MMR")
-            elif leaderboard_rank:
-                parts.append(f"Bảng xếp hạng: Top #{leaderboard_rank}")
-            else:
-                parts.append("Valve hiện ẩn chỉ số MMR chính xác từ API")
-            
-            return " | ".join(parts)
-        except Exception:
-            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
-
     def get_today_message(self) -> str:
         """Generate response for !today command based on the current stream session."""
         try:
-            session_matches = self.get_session_matches()
             player = self.get_player_data()
             name = player.get("profile", {}).get("personaname", "Streamer")
             now = datetime.now(self.tz)
+
+            # Chỉ tính trận từ 0h hôm nay (theo múi giờ đã cấu hình, mặc định GMT+7).
+            # Trước đây hàm chỉ gom theo khoảng cách < 5 tiếng giữa các trận, nên
+            # hôm nào chưa đánh thì nó vẫn trả về cả ca hôm qua.
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            today_start_ts = today_start.timestamp()
+            session_matches = [
+                m for m in self.get_session_matches()
+                if (start_ts := self._start_time_epoch(m)) is not None
+                and start_ts >= today_start_ts
+            ]
 
             if not session_matches:
                 return f"📅 Ca stream hôm nay ({now.strftime('%d/%m')}): {name} chưa có trận đấu nào được ghi nhận."
@@ -587,33 +605,256 @@ class OpenDotaClient:
         except Exception:
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
-    def get_last_match_message(self) -> str:
-        """Generate response for !lastmatch command."""
+    @staticmethod
+    def _is_win(match: Dict[str, Any]) -> bool:
+        """Trận này streamer thắng hay thua (dựa vào player_slot / radiant_win)."""
+        is_radiant = match.get("player_slot", 0) < 128
+        return bool((match.get("radiant_win") and is_radiant) or (not match.get("radiant_win") and not is_radiant))
+
+    def get_streak_message(self) -> str:
+        """Generate response for !streak / !chuoi: chuỗi thắng/thua hiện tại."""
         try:
             matches = self.get_recent_matches()
             if not matches:
                 return "⚠️ Không tìm thấy trận đấu nào gần đây."
 
-            m = matches[0]
-            match_id = m.get("match_id")
-            is_radiant = m.get("player_slot", 0) < 128
-            won = (m.get("radiant_win") and is_radiant) or (not m.get("radiant_win") and not is_radiant)
-            hero_name = self.get_hero_name(m.get("hero_id", 0))
-            kda = f"{m.get('kills', 0)}/{m.get('deaths', 0)}/{m.get('assists', 0)}"
-            res_str = "Chiến Thắng 🏆" if won else "Thất Bại 💀"
-            duration_min = m.get("duration", 0) // 60
+            latest = matches[0]
+            won_first = self._is_win(latest)
+            streak = 0
+            for m in matches:
+                if self._is_win(m) == won_first:
+                    streak += 1
+                else:
+                    break
 
-            return (
-                f"⚔️ Trận gần nhất: {hero_name} | Kết quả: {res_str} | "
-                f"KDA: {kda} | Thời lượng: {duration_min}p | "
-                f"Dotabuff: https://www.dotabuff.com/matches/{match_id}"
-            )
+            hero = self.get_hero_short_name(latest.get("hero_id", 0))
+            kda = f"{latest.get('kills', 0)}/{latest.get('deaths', 0)}/{latest.get('assists', 0)}"
+            if won_first:
+                return f"🔥 Đang thắng {streak} trận liên tiếp | Trận gần nhất: {hero} ({kda})"
+            return f"💀 Đang thua {streak} trận liên tiếp | Trận gần nhất: {hero} ({kda})"
         except Exception:
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
-    def get_profile_message(self) -> str:
-        """Generate response for !dotabuff / !profile command."""
-        return (
-            f"🌐 Dotabuff: https://www.dotabuff.com/players/{self.account_id} | "
-            f"OpenDota: https://www.opendota.com/players/{self.account_id}"
-        )
+    def get_recent_message(self, count: int = 10) -> str:
+        """Generate response for !recent / !5tran: kết quả các trận gần nhất."""
+        try:
+            matches = self.get_recent_matches()
+            if not matches:
+                return "⚠️ Không tìm thấy trận đấu nào gần đây."
+
+            recent = matches[:count]
+            # Hiển thị theo thứ tự thời gian (trận cũ trước, trận mới sau)
+            # để khán giả đọc xu hướng từ trái sang phải.
+            results = ["W" if self._is_win(m) else "L" for m in reversed(recent)]
+            wins = results.count("W")
+            return f"📊 {len(recent)} trận gần nhất: {' '.join(results)} ({wins}W-{len(recent) - wins}L)"
+        except Exception:
+            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+
+    def get_player_heroes(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Tính thống kê tướng trong `limit` trận gần nhất (mặc định 100), cached 5 phút.
+
+        Không dùng endpoint /players/{account_id}/heroes nữa, vì endpoint đó
+        trả về thống kê CẢ ĐỜI (không giới hạn số trận). Thay vào đó lấy
+        100 trận gần nhất từ /players/{account_id}/matches rồi tự đếm
+        số trận / số trận thắng theo từng tướng. Dùng riêng OpenDota ở đây
+        (không dùng get_recent_matches) vì STRATZ/Steam trong code hiện tại
+        chỉ trả về 10 trận, không đủ 100.
+        """
+        now = time.time()
+        if self._player_heroes_cache and (now - self._player_heroes_cache_time < self.cache_ttl_player_heroes):
+            return self._player_heroes_cache
+        try:
+            data = self._api_get(f"players/{self.account_id}/matches", params={"limit": limit})
+            if not isinstance(data, list):
+                return []
+            counts: Dict[int, Dict[str, int]] = {}
+            for m in data[:limit]:
+                hero_id = m.get("hero_id")
+                if not hero_id:
+                    continue
+                hero_id = int(hero_id)
+                entry = counts.setdefault(hero_id, {"hero_id": hero_id, "games": 0, "win": 0})
+                entry["games"] += 1
+                if self._is_win(m):
+                    entry["win"] += 1
+            result = list(counts.values())
+            self._player_heroes_cache = result
+            self._player_heroes_cache_time = now
+            return result
+        except Exception as e:
+            logger.warning(f"Lỗi khi lấy thống kê tướng từ OpenDota: {e}")
+            if self._player_heroes_cache:
+                return self._player_heroes_cache
+        return []
+
+    def get_heroes_message(self) -> str:
+        """Generate response for !heroes / !besthero: tướng tủ trong 100 trận gần nhất."""
+        try:
+            heroes = self.get_player_heroes()
+            if not heroes:
+                return "⚠️ Không lấy được thống kê tướng, bạn vui lòng thử lại sau vài giây!"
+
+            played = [h for h in heroes if (h.get("games") or 0) > 0]
+            if not played:
+                return "⚠️ Không lấy được thống kê tướng, bạn vui lòng thử lại sau vài giây!"
+
+            top = sorted(played, key=lambda h: h.get("games", 0), reverse=True)[:3]
+            parts = []
+            for h in top:
+                games = h.get("games", 0)
+                wins = h.get("win", 0)
+                wr = (wins / games * 100) if games else 0
+                parts.append(f"{self.get_hero_short_name(h.get('hero_id', 0))} ({games} trận, {wr:.0f}%)")
+            return "🏆 Tướng tủ (100 trận gần nhất): " + " | ".join(parts)
+        except Exception:
+            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+
+    def get_player_peers(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Lấy danh sách người chơi cùng trong `limit` trận gần nhất, cached 5 phút.
+
+        Endpoint /players/{account_id}/peers mặc định trả về thống kê CẢ ĐỜI,
+        nhưng nó nhận tham số `limit` = số trận gần nhất đem ra tính
+        (theo tài liệu OpenDota API). Đã kiểm chứng live 2026-11-06 trên
+        account 196931374: /peers không tham số trả về top with_games 668 trận,
+        còn /peers?limit=50 chỉ trả về 10 người, top with_games 3 trận; /peers?limit=100 trả về 34 người, 15,8 KB, ~1,8 giây — không nặng hơn đáng kể.
+        Chỉ 1 request, không cần tải chi tiết từng trận.
+        """
+        now = time.time()
+        if self._player_peers_cache and (now - self._player_peers_cache_time < self.cache_ttl_player_peers):
+            return self._player_peers_cache
+        try:
+            data = self._api_get(f"players/{self.account_id}/peers", params={"limit": limit})
+            if isinstance(data, list):
+                self._player_peers_cache = data
+                self._player_peers_cache_time = now
+                return data
+        except Exception as e:
+            logger.warning(f"Lỗi khi lấy danh sách duo từ OpenDota: {e}")
+            if self._player_peers_cache:
+                return self._player_peers_cache
+        return []
+
+    def get_mate_message(self) -> str:
+        """Generate response for !mate: hay duo với ai trong 100 trận gần nhất.
+
+        Chỉ tính trận chơi CÙNG đội (with_games / with_win). Endpoint peers
+        còn trả về games/win tổng (cả cùng đội lẫn đối đầu) và against_games,
+        nên phải dùng đúng trường with_* chứ không dùng games/win.
+        """
+        try:
+            peers = self.get_player_peers()
+            if not peers:
+                return "⚠️ Không lấy được danh sách duo, bạn vui lòng thử lại sau vài giây!"
+            duo = [p for p in peers if (p.get("with_games") or 0) > 0]
+            if not duo:
+                return "⚠️ Không tìm thấy ai duo cùng trong 100 trận gần nhất."
+            top = sorted(duo, key=lambda p: p.get("with_games", 0), reverse=True)[:3]
+            parts = []
+            for p in top:
+                games = p.get("with_games", 0)
+                wins = p.get("with_win", 0)
+                # Hiện số trận thắng (vd: 8W) thay vì % winrate, vì số trận
+                # duo trong 100 trận gần nhất khá ít nên % dễ gây hiểu lầm.
+                name = p.get("personaname") or f"Player {p.get('account_id', 0)}"
+                parts.append(f"{name} ({games} trận, {wins}W)")
+            return "👥 Hay duo với (100 trận gần nhất): " + " | ".join(parts)
+        except Exception:
+            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+
+    def get_live_game(self) -> Optional[Dict[str, Any]]:
+        """Tìm trận đang diễn ra của player trong OpenDota /live, cached 60 giây.
+
+        OpenDota KHÔNG có endpoint trận live theo player. GET /live chỉ trả
+        về top 100 trận đang diễn ra, nên phải quét từng trận và tìm
+        account_id trong danh sách players[]. Trả về None nếu không thấy —
+        lưu ý: không thấy trong /live không đồng nghĩa là không đang đánh,
+        vì trận rank thấp có thể không lọt top 100.
+        """
+        now = time.time()
+        if self._live_cache is not None and (now - self._live_cache_time < self.cache_ttl_live):
+            games = self._live_cache
+        else:
+            try:
+                data = self._api_get("live")
+                if not isinstance(data, list):
+                    return None
+                self._live_cache = data
+                self._live_cache_time = now
+                games = data
+            except Exception as e:
+                logger.warning(f"Lỗi khi lấy danh sách trận live từ OpenDota: {e}")
+                games = self._live_cache or []
+        try:
+            my_id = int(self.account_id)
+        except (TypeError, ValueError):
+            return None
+        for g in games:
+            for p in g.get("players") or []:
+                if p.get("account_id") == my_id:
+                    return g
+        return None
+
+    @staticmethod
+    def estimate_win_pct(my_lead: int, game_time: int, kill_diff: int) -> int:
+        """Ước tính tỉ lệ thắng của đội streamer, theo công thức heuristic.
+
+        z = 6 * L / (2250 * t) * 30 / (30 + t) + 0.02 * D, P = 1/(1+e^-z),
+        kẹp 5-95%. L = chênh vàng theo góc streamer, t = số phút đã đấu,
+        D = chênh kill. Vàng được chia cho tổng net worth ước tính của
+        một team (5 người x ~450 vàng/phút x t) rồi nhân thêm hệ số
+        30/(30+t) vì càng về late vàng càng mất giá (đồ đầy slot, một
+        combat là lật được trận). Phần kill không giảm theo thời gian vì
+        kill về late càng có giá (thời gian hồi sinh dài).
+        Đây là ước tính thô, KHÔNG phải dự đoán của Dota Plus (đóng nguồn)
+        và /live không có trụ, XP, buyback hay đồ từng người.
+        """
+        t = max(float(game_time) / 60.0, 1.0)
+        z = 6.0 * my_lead / (2250.0 * t) * (30.0 / (30.0 + t)) + 0.02 * kill_diff
+        pct = 100.0 / (1.0 + math.exp(-z))
+        return int(max(5, min(95, round(pct))))
+
+    def get_live_message(self) -> str:
+        """Generate response for !live: trận đang diễn ra của streamer.
+
+        Theo yêu cầu của user, KHÔNG hiện tướng, tỉ số hay số người xem.
+        Chỉ trả về phút thi đấu + tỉ lệ thắng ước tính (xem
+        estimate_win_pct) và, nếu có, tên pro (is_pro) cùng team / đối đầu
+        lấy từ dữ liệu /live. Dữ liệu trễ ~120 giây (delay xem spectate).
+        """
+        try:
+            game = self.get_live_game()
+            if not game:
+                return "⚠️ Hiện không thấy streamer đang trong trận (theo OpenDota /live, chỉ top 100 trận live)."
+            players = game.get("players") or []
+            me = next((p for p in players if p.get("account_id") == int(self.account_id)), None)
+            if not me:
+                return "⚠️ Hiện không thấy streamer đang trong trận (theo OpenDota /live, chỉ top 100 trận live)."
+            game_time = int(game.get("game_time") or 0)
+            if game_time < 0:
+                game_time = 0
+            clock = f"{game_time // 60}:{game_time % 60:02d}"
+            radiant_score = game.get("radiant_score") or 0
+            dire_score = game.get("dire_score") or 0
+            # radiant_lead > 0: Radiant dẫn vàng. Đổi sang góc nhìn của streamer.
+            lead = int(game.get("radiant_lead") or 0)
+            is_radiant = (me.get("team") == 0)
+            my_lead = lead if is_radiant else -lead
+            kill_diff = (radiant_score - dire_score) if is_radiant else (dire_score - radiant_score)
+            win_pct = self.estimate_win_pct(my_lead, game_time, kill_diff)
+            msg = f"🔴 Đang đánh ({clock}): ước tính thắng ~{win_pct}%"
+            # Pro trong trận (is_pro từ /live). Rất hiếm nên chỉ hiện khi có.
+            my_team = me.get("team")
+            pros_mine = [p.get("name") for p in players
+                         if p.get("is_pro") and p.get("team") == my_team and p.get("name")]
+            pros_opp = [p.get("name") for p in players
+                        if p.get("is_pro") and p.get("team") != my_team and p.get("name")]
+            if pros_mine:
+                msg += " | Pro cùng team: " + ", ".join(pros_mine)
+            if pros_opp:
+                msg += " | Pro đối đầu: " + ", ".join(pros_opp)
+            return msg
+        except Exception:
+            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+
+

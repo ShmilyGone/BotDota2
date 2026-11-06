@@ -11,12 +11,14 @@ Bot tự động lắng nghe live chat trên YouTube và phản hồi thông tin
 
 | Lệnh | Mô tả | Ví dụ kết quả phản hồi |
 | :--- | :--- | :--- |
-| `!today` hoặc `!homnay` | Thống kê kết quả thi đấu trong ngày hôm nay (Thắng/Thua, Winrate, Tướng chơi, Trận vừa kết thúc) | `🔥 Hôm nay (05/11): 4W - 2L (66.7%) \| Trận vừa xong: Outworld Devourer (16/2/10) Thắng ✅ \| Tướng: Outworld Devourer (1W-0L), Ember Spirit (1W-0L)...` |
+| `!today` hoặc `!homnay` | Thống kê kết quả thi đấu trong ngày hôm nay, chỉ tính trận bắt đầu từ 0h hôm nay theo múi giờ đã cấu hình (Thắng/Thua, Winrate, Tướng chơi, Trận vừa kết thúc) | `🔥 Hôm nay (05/11): 4W - 2L (66.7%) \| Trận vừa xong: Outworld Devourer (16/2/10) Thắng ✅ \| Tướng: Outworld Devourer (1W-0L), Ember Spirit (1W-0L)...` |
 | `!rank` | Xem medal/rank hiện tại của streamer | `🏅 Rank hiện tại của To the Moon and not back: Immortal (Top #215)` |
-| `!mmr` | Thông tin MMR hoặc thứ hạng Leaderboard | `📊 To the Moon and not back \| Rank: Immortal (Top #215) \| Bảng xếp hạng: Top #215` |
-| `!lastmatch` hoặc `!last` | Chi tiết trận đấu vừa kết thúc gần nhất (Tướng, KDA, Thời lượng, link Dotabuff) | `⚔️ Trận gần nhất: Outworld Devourer \| Kết quả: Chiến Thắng 🏆 \| KDA: 16/2/10 \| Thời lượng: 28p \| Dotabuff: https://www.dotabuff.com/matches/...` |
-| `!profile` hoặc `!dotabuff` | Link trang cá nhân Dotabuff & OpenDota | `🌐 Dotabuff: https://www.dotabuff.com/players/196931374 \| OpenDota: https://www.opendota.com/players/196931374` |
-| `!help` hoặc `!lenh` | Hiển thị danh sách các lệnh có sẵn | `📜 Lệnh có sẵn: !today, !rank, !mmr, !lastmatch, !profile` |
+| `!streak` hoặc `!chuoi` | Chuỗi thắng/thua hiện tại, tính từ các trận gần nhất | `🔥 Đang thắng 4 trận liên tiếp \| Trận gần nhất: OD (16/2/10)` |
+| `!recent` hoặc `!5tran` | Kết quả 10 trận gần nhất, theo thứ tự thời gian | `📊 10 trận gần nhất: W W L W W L W W W L (7W-3L)` |
+| `!heroes` hoặc `!besthero` | Top 3 tướng hay chơi nhất trong 100 trận gần nhất của streamer (số trận, winrate) | `🏆 Tướng tủ (100 trận gần nhất): OD (40 trận, 70%) \| Ember (30 trận, 60%)` |
+| `!mate` | Top 3 người hay duo cùng nhất trong 100 trận gần nhất (số trận cùng đội, số trận thắng khi duo) | `👥 Hay duo với (100 trận gần nhất): ABC (24 trận, 14W)` |
+| `!live` | Trận đang diễn ra: phút thi đấu + tỉ lệ thắng ước tính từ chênh vàng/kill (công thức heuristic, không phải Dota Plus), kèm tên pro trong trận nếu có | `🔴 Đang đánh (28:09): ước tính thắng ~79%` |
+| `!help` hoặc `!lenh` | Hiển thị danh sách các lệnh có sẵn | `📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live` |
 
 ---
 
@@ -24,14 +26,13 @@ Bot tự động lắng nghe live chat trên YouTube và phản hồi thông tin
 
 1. **Xác thực:** Bạn đăng nhập tài khoản Google của bot (tạo credentials `client_secret.json` cho tài khoản bot).
 2. **Kênh mục tiêu:** Trong `.env`, đặt `TARGET_CHANNEL=@DHDota2`. Khi khởi động, bot sẽ tự động tìm buổi live đang phát trực tiếp của `@DHDota2` và kết nối vào Live Chat.
-3. **Phản hồi:** Khi người xem chat `!today`, `!rank`, `!mmr`, bot sẽ dùng tài khoản của bạn để gửi câu trả lời vào khung chat của stream.
+3. **Phản hồi:** Khi người xem chat `!today`, `!rank`, bot sẽ dùng tài khoản của bạn để gửi câu trả lời vào khung chat của stream.
 
 ### ⚠️ Lưu ý quan trọng để Bot hoạt động mượt mà:
 1. **Tài khoản bot phải có kênh YouTube:** Đăng nhập tài khoản bot vào `youtube.com` và bấm **Tạo kênh** (chỉ cần tạo kênh trống để YouTube cấp quyền chat).
 2. **Đăng ký kênh streamer:** Bấm **Subscribe (Đăng ký)** kênh `@DHDota2` (để tránh trường hợp streamer bật *Chế độ chỉ dành cho người đăng ký chat*).
 3. **Cấp quyền Quản trị viên (Cờ lê xanh 🔧) - Khuyến nghị:** Nhờ chủ kênh `@DHDota2` cấp quyền Moderator cho tài khoản bot. Khi có cờ lê:
    - Bot không bị ảnh hưởng bởi chế độ chat chậm (Slow mode).
-   - Bot có thể gửi link Dotabuff mà không bị bộ lọc spam của YouTube ẩn tin nhắn.
 
 ---
 
@@ -89,6 +90,52 @@ Kiểm tra dữ liệu OpenDota trực tiếp trên Terminal:
 
 3. Lần đầu chạy, trình duyệt sẽ mở để bạn đăng nhập tài khoản bot và cấp quyền. Các lần tiếp theo bot sẽ tự động chạy ngầm.
 
+---
+
+## 🐧 Chạy trên Linux / Lubuntu
+
+File `start_bot.bat` chỉ dùng cho Windows. Trên Lubuntu dùng `start_bot.sh` (đã có sẵn trong thư mục này):
+
+```bash
+# 1. Cài Python + venv (chỉ cần làm 1 lần)
+sudo apt update
+sudo apt install -y python3 python3-venv python3-pip
+
+# 2. Giải nén code rồi vào thư mục đó, ví dụ:
+cd ~/BotDota2-main
+chmod +x start_bot.sh
+
+# 3. Copy file cấu hình và file OAuth vào thư mục này
+cp .env.example .env
+# sửa .env nếu cần: DOTA_ACCOUNT_ID, TARGET_CHANNEL, ...
+# chép client_secret.json (tải theo Bước 3 ở trên) vào đây
+
+# 4. Test lệnh Dota 2 trước, không cần YouTube
+./start_bot.sh --test-dota
+
+# 5. Chạy bot thật (lần đầu sẽ mở trình duyệt để đăng nhập tài khoản bot)
+./start_bot.sh
+```
+
+Muốn chạy ngầm để tắt terminal vẫn chạy, dùng `tmux`:
+
+```bash
+tmux new -s bot
+./start_bot.sh
+# bấm Ctrl+B rồi D để thoát khỏi tmux mà bot vẫn chạy
+# xem lại bằng: tmux attach -t bot
+```
+
+Tương đương thủ công, không dùng script:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python main.py --test-dota
+python main.py
+```
+
 
 ---
 
@@ -102,5 +149,9 @@ Nếu dùng API chính thống để liên tục quét đọc tin nhắn (`liveC
    * Sử dụng thư viện `pytchat` để đọc luồng chat trực tiếp từ stream với **chi phí 0 Quota**.
    * Bot có thể cắm máy lắng nghe chat 24/7/365 ngày mà không tốn một đơn vị Quota nào của Google.
 2. **Gửi tin nhắn trả lời (20 Quota units/tin):** 
-   * Chỉ khi có người xem gõ lệnh (`!today`, `!rank`, `!mmr`...), bot mới dùng API OAuth để gửi tin nhắn.
+   * Chỉ khi có người xem gõ lệnh (`!today`, `!rank`...), bot mới dùng API OAuth để gửi tin nhắn.
    * Với 10.000 units miễn phí hàng ngày, bot có thể **trả lời tới 500 tin nhắn/ngày** mà không bao giờ lo bị cạn Quota vì quét đọc tin nhắn ngầm!
+3. **Tiết kiệm thêm bằng cooldown + chống trùng lặp:**
+   * Mỗi lệnh hồi 20 giây (`COMMAND_COOLDOWN`), mọi tin trả lời cách nhau tối thiểu 10 giây (`GLOBAL_COOLDOWN`).
+   * Nếu câu trả lời giống hệt lần đã gửi trong 3 phút (`DEDUP_WINDOW_SECONDS=180`), bot sẽ bỏ qua, không tốn 20 units. Sau 3 phút, viewer mới vẫn nhận được câu trả lời bình thường.
+   * Alias được gộp về lệnh chuẩn (`!homnay` → `!today`, `!lenh` → `!help`) nên không lách được cooldown bằng cách gõ tên lệnh khác.
