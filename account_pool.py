@@ -86,6 +86,7 @@ class AccountPool:
         self.current_index = 0
         self.all_bot_channel_ids: Set[str] = set()
         self.chat_id_cache: Dict[str, str] = {}
+        self.video_channel_map: Dict[str, str] = {}
         self.discover_accounts()
 
     def discover_accounts(self):
@@ -163,6 +164,9 @@ class AccountPool:
                     streaming_details = items[0].get("liveStreamingDetails")
                     snippet = items[0].get("snippet", {})
                     live_broadcast_content = snippet.get("liveBroadcastContent", "none")
+                    channel_id = snippet.get("channelId")
+                    if channel_id:
+                        self.video_channel_map[target_vid] = channel_id
 
                     if streaming_details and live_broadcast_content == "live":
                         chat_id = streaming_details.get("activeLiveChatId")

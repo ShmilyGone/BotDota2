@@ -6,6 +6,34 @@ import logging
 from typing import Optional, Set, Dict
 import requests
 import pytchat
+from pytchat import util as pytchat_util, config as pytchat_config
+
+# Configure pytchat with modern user-agent and Google consent cookies to avoid consent blocks on VPS IPs
+pytchat_config.headers.update({
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "cookie": "SOCS=CAESEwgDEgk0ODE3Nzk3MjQaAmVuIAEaBgiA_LyaBg; CONSENT=PENDING+999"
+})
+pytchat_config.m_headers.update({
+    "user-agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+    "cookie": "SOCS=CAESEwgDEgk0ODE3Nzk3MjQaAmVuIAEaBgiA_LyaBg; CONSENT=PENDING+999"
+})
+
+# Global map of video_id -> channel_id
+KNOWN_VIDEO_CHANNEL_IDS: Dict[str, str] = {
+    "8d1kyZkhryA": "UCP1MRNDMG9t9vJPaVpiCh4w"
+}
+DEFAULT_TARGET_CHANNEL_ID = "UCP1MRNDMG9t9vJPaVpiCh4w"
+
+_orig_pytchat_get_channelid = pytchat_util.get_channelid
+
+def _patched_get_channelid(client, video_id):
+    if video_id in KNOWN_VIDEO_CHANNEL_IDS:
+        return KNOWN_VIDEO_CHANNEL_IDS[video_id]
+    if DEFAULT_TARGET_CHANNEL_ID:
+        return DEFAULT_TARGET_CHANNEL_ID
+    return _orig_pytchat_get_channelid(client, video_id)
+
+pytchat_util.get_channelid = _patched_get_channelid
 
 from opendota_client import OpenDotaClient
 from account_pool import AccountPool
@@ -252,6 +280,9 @@ class YouTubeLiveChatBot:
 
                 # Lấy live_chat_id thông qua pool tài khoản (chỉ tốn 1 unit và được lưu cache)
                 self.live_chat_id = self.account_pool.fetch_live_chat_id(vid)
+                ch_id = self.account_pool.video_channel_map.get(vid)
+                if ch_id:
+                    KNOWN_VIDEO_CHANNEL_IDS[vid] = ch_id
 
                 logger.info("📡 Đang kết nối lắng nghe chat qua pytchat (0 Quota API)...")
                 try:
