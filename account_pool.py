@@ -351,13 +351,21 @@ class AccountPool:
         tot_msgs = 0
         tot_units = 0
 
-        for acc in self.accounts:
+        bot_tags_map = {
+            "107634989760": "BOT01",
+            "601629234609": "BOT02",
+            "806429055747": "BOT03",
+        }
+
+        for idx, acc in enumerate(self.accounts, 1):
+            bot_tag = bot_tags_map.get(acc.project_id, f"BOT{idx:02d}")
             msgs = counts.get(acc.project_id, 0)
             units = msgs * 50
             pct = min(100.0, (units / 10000.0) * 100.0)
             status = "Hết Quota ⏳" if (acc.quota_exhausted or units >= 10000) else "Sẵn sàng ✅"
             rows.append({
                 "project_id": acc.project_id,
+                "bot_tag": bot_tag,
                 "title": acc.channel_title if acc.channel_title != "Unknown" else f"Dự án {acc.project_id}",
                 "channel_id": acc.channel_id,
                 "messages": msgs,
@@ -389,21 +397,21 @@ class AccountPool:
         """In bảng ước lượng Quota YouTube API đẹp mắt trên Terminal."""
         summary = self.get_quota_summary()
         cycle = summary["cycle"]
-        print("=" * 86)
+        print("=" * 88)
         print(f"📊 BẢNG ƯỚC LƯỢNG QUOTA YOUTUBE DATA API (Chu kỳ: {cycle}):")
         print("   (Mỗi tin nhắn gửi đi tốn 50 units. Quota reset hàng ngày lúc 15:00 GMT+7)")
-        print("-" * 86)
-        print(f"| {'STT':<3} | {'Tài khoản Bot':<14} | {'Dự án Google Cloud':<20} | {'Tin đã gửi':<10} | {'Quota đã dùng':<16} | {'Trạng thái':<10} |")
-        print("-" * 86)
+        print("-" * 88)
+        print(f"| {'STT':<3} | {'Tên Bot':<16} | {'Dự án Google Cloud':<20} | {'Tin đã gửi':<10} | {'Quota đã dùng':<16} | {'Trạng thái':<10} |")
+        print("-" * 88)
         for idx, row in enumerate(summary["accounts"], 1):
             stt = str(idx)
-            title = row["title"][:14]
+            title = f"{row['bot_tag']} ({row['title']})"[:16]
             pid = row["project_id"][:20]
             msgs = f"{row['messages']} tin"
             quota_str = f"{row['units_used']:,}/10,000 ({row['percent']:.1f}%)"
             status = row["status"]
-            print(f"| {stt:<3} | {title:<14} | {pid:<20} | {msgs:<10} | {quota_str:<16} | {status:<10} |")
-        print("-" * 86)
+            print(f"| {stt:<3} | {title:<16} | {pid:<20} | {msgs:<10} | {quota_str:<16} | {status:<10} |")
+        print("-" * 88)
         tot_m = summary["total_messages"]
         tot_max = summary["total_max_messages"]
         tot_u = summary["total_units"]
@@ -411,14 +419,14 @@ class AccountPool:
         tot_p = summary["total_percent"]
         rem = summary["total_remaining_messages"]
         print(f"| Tổng: {tot_m}/{tot_max} tin (~{tot_u:,}/{tot_lim:,} units - {tot_p:.1f}%) | Còn lại: ~{rem} tin nhắn |")
-        print("=" * 86)
+        print("=" * 88)
 
     def get_quota_chat_message(self) -> str:
         """Tạo thông điệp báo cáo quota ngắn gọn (<= 195 ký tự) cho YouTube Live Chat."""
         summary = self.get_quota_summary()
         acc_parts = []
         for a in summary["accounts"]:
-            acc_parts.append(f"{a['title']}: {a['messages']} tin")
+            acc_parts.append(f"{a['bot_tag']}: {a['messages']} tin")
         acc_str = ", ".join(acc_parts)
         tot = summary["total_messages"]
         tot_max = summary["total_max_messages"]
