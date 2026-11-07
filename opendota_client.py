@@ -875,18 +875,30 @@ class OpenDotaClient:
                 mmr_val = float(latest["mmr"]) / 1000.0
                 mmr_part = f" [Avg MMR {mmr_val:.1f}k]"
 
-            # PMP (Player Match Performance) giải thích rõ ràng cho khán giả
+            # PMP (Player Match Performance) giải thích rõ ràng theo thang điểm 5 cho khán giả
             pmp_part = ""
             if latest.get("pmp") is not None:
                 pmp_val = float(latest["pmp"])
-                if pmp_val >= 15.0:
-                    desc = "Gánh team 🔥"
+                if pmp_val >= 20.0:
+                    desc = "Gánh còng lưng 🔥"
+                elif pmp_val >= 15.0:
+                    desc = "Gánh team 🚀"
+                elif pmp_val >= 10.0:
+                    desc = "Rất bay ✨"
+                elif pmp_val >= 5.0:
+                    desc = "Đánh tốt 👏"
                 elif pmp_val >= 0.0:
-                    desc = "Tròn vai 👍"
+                    desc = "Tròn vai 👌"
+                elif pmp_val >= -5.0:
+                    desc = "Hơi đuối 😐"
                 elif pmp_val >= -10.0:
                     desc = "Khó thở ⚠️"
+                elif pmp_val >= -15.0:
+                    desc = "Thọt nặng 📉"
+                elif pmp_val >= -20.0:
+                    desc = "Dưới phong độ 🥀"
                 else:
-                    desc = "Dưới phong độ 📉"
+                    desc = "Thảm họa 💀"
                 sign = "+" if pmp_val > 0 else ""
                 pmp_part = f" | Phong độ: {sign}{pmp_val:.1f} (D2PT chấm: {desc})"
 
