@@ -115,18 +115,14 @@ def resolve_channel_live_video(target_channel: str) -> Optional[str]:
         r_s = session.get(url_streams, timeout=10)
         html_s = r_s.text
 
-        patterns = [
-            r'badgeStyle":"THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE","animationActivationTargetId":"([a-zA-Z0-9_-]{11})"',
-            r'"animationActivationTargetId":"([a-zA-Z0-9_-]{11})"[^}]+?THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE',
-            r'/vi/([a-zA-Z0-9_-]{11})/[^"]*?\.jpg[^}]+?THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE',
-            r'([a-zA-Z0-9_-]{11})[^\n]+?THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE',
-            r'"videoId":"([a-zA-Z0-9_-]{11})"[^}]+?"style":"LIVE"',
-            r'"videoId":"([a-zA-Z0-9_-]{11})"[^}]+?LIVE_NOW',
-        ]
-        for p in patterns:
-            m = re.search(p, html_s)
-            if m:
-                return m.group(1)
+        if "LIVE" in html_s:
+            for m in re.finditer(r'"videoId":"([a-zA-Z0-9_-]{11})"', html_s):
+                vid_cand = m.group(1)
+                start = max(0, m.start() - 300)
+                end = min(len(html_s), m.end() + 300)
+                window = html_s[start:end]
+                if "THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE" in window or '"style":"LIVE"' in window or "LIVE_NOW" in window:
+                    return vid_cand
     except Exception as e:
         logger.warning(f"Không thể quét tab streams '{url_streams}': {e}")
 
