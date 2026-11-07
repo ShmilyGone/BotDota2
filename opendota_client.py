@@ -435,6 +435,37 @@ class OpenDotaClient:
                         elif iid_int == 609:
                             item_timeline.append(f"Shard ({min_int}p)")
 
+                pros = []
+                p_idx = chunk.find('players:[')
+                if p_idx != -1:
+                    p_chunk = chunk[p_idx:p_idx+12000]
+                    for block in p_chunk.split('{player_name:')[1:]:
+                        name_m = re.match(r'"?([^",]+)', block)
+                        pro_m = re.search(r'is_pro:([01])', block)
+                        hero_m = re.search(r'hero_displayName:"?([^",]+)', block)
+                        hid_m = re.search(r'hero_id:(\d+)', block)
+                        rad_m = re.search(r'is_radiant:([01])', block)
+                        acc_m = re.search(r'account_id:(\d+)', block)
+                        role_m = re.search(r'role:"?([^",]+)', block)
+                        if name_m and pro_m:
+                            pname = name_m.group(1).strip()
+                            is_pro = int(pro_m.group(1))
+                            hero = hero_m.group(1).strip() if hero_m else ''
+                            p_hid = int(hid_m.group(1)) if hid_m else 0
+                            p_rad = int(rad_m.group(1)) if rad_m else 0
+                            acc = acc_m.group(1) if acc_m else ''
+                            p_role = role_m.group(1).strip() if role_m else ''
+                            if is_pro == 1 and acc != str(self.account_id):
+                                is_with = (int(is_rad) == p_rad)
+                                pros.append({
+                                    "name": pname,
+                                    "hero": hero,
+                                    "hero_id": p_hid,
+                                    "account_id": int(acc) if acc else None,
+                                    "role": p_role,
+                                    "is_with": is_with
+                                })
+
                 parsed_matches.append({
                     "match_id": int(mid),
                     "mmr": int(mmr_val) if mmr_val else None,
@@ -451,7 +482,8 @@ class OpenDotaClient:
                     "net_worth": int(nw_m.group(1)) if nw_m else None,
                     "gold_per_min": int(gpm_m.group(1)) if gpm_m else None,
                     "last_hits": int(cs_m.group(1)) if cs_m else None,
-                    "item_timeline": item_timeline[:4]
+                    "item_timeline": item_timeline[:4],
+                    "pros": pros
                 })
             return parsed_matches
         except Exception as e:
@@ -583,7 +615,7 @@ class OpenDotaClient:
                     
                     # Giữ lại các trường chi tiết bổ sung từ D2PT/STRATZ nếu bản ghi hiện tại chưa có
                     target = merged[mid_int]
-                    for field in ["mmr", "role", "pmp", "net_worth", "gold_per_min", "last_hits", "item_timeline"]:
+                    for field in ["mmr", "role", "pmp", "net_worth", "gold_per_min", "last_hits", "item_timeline", "pros"]:
                         if m.get(field) is not None and target.get(field) is None:
                             target[field] = m[field]
 
@@ -933,21 +965,36 @@ class OpenDotaClient:
 
             farm_part = (" | " + ", ".join(farm_items)) if farm_items else ""
 
-            items_part = ""
-            if latest.get("item_timeline"):
-                items_part = " | Đồ: " + ", ".join(latest["item_timeline"])
+            pros_part = ""
+            if latest.get("pros"):
+                pros_with = [p for p in latest["pros"] if p.get("is_with")]
+                pros_against = [p for p in latest["pros"] if not p.get("is_with")]
+                pro_details = []
+                if pros_with:
+                    pro_details.append("Cùng " + ", ".join(f"{p['name']} ({self.get_hero_short_name(p.get('hero_id', 0))})" for p in pros_with[:2]))
+                if pros_against:
+                    pro_details.append("Đối " + ", ".join(f"{p['name']} ({self.get_hero_short_name(p.get('hero_id', 0))})" for p in pros_against[:2]))
+                if pro_details:
+                    pros_part = " | Pro: " + ", ".join(pro_details)
 
-            msg = f"📖 Trận vừa xong: {hero_name}{role_part} {res_str}{dur_str}{mmr_part} | KDA: {kda}{pmp_part}{farm_part}{items_part}"
+            msg = f"📖 Trận vừa xong: {hero_name}{role_part} {res_str}{dur_str}{mmr_part} | KDA: {kda}{pmp_part}{farm_part}{pros_part}"
 
             # YouTube chat giới hạn 200 ký tự. Đảm bảo <= 195 ký tự:
             if len(msg) > 195:
-                # Bỏ bớt farm_part để ưu tiên KDA + PMP + Items
-                msg_compact = f"📖 Trận vừa xong: {hero_name}{role_part} {res_str}{dur_str}{mmr_part} | KDA: {kda}{pmp_part}{items_part}"
+                # Bỏ bớt farm_part để ưu tiên KDA + PMP + Pro Players
+                msg_compact = f"📖 Trận vừa xong: {hero_name}{role_part} {res_str}{dur_str}{mmr_part} | KDA: {kda}{pmp_part}{pros_part}"
                 if len(msg_compact) <= 195:
                     return msg_compact
-                if latest.get("item_timeline"):
-                    short_items = " | Đồ: " + ", ".join(latest["item_timeline"][:2])
-                    msg_compact = f"📖 Trận vừa xong: {hero_name}{role_part} {res_str}{dur_str}{mmr_part} | KDA: {kda}{pmp_part}{short_items}"
+                if latest.get("pros"):
+                    # Rút ngắn tên pro không kèm tên hero
+                    pros_with = [p["name"] for p in latest["pros"] if p.get("is_with")]
+                    pros_against = [p["name"] for p in latest["pros"] if not p.get("is_with")]
+                    simple_details = []
+                    if pros_with:
+                        simple_details.append("Cùng " + ", ".join(pros_with[:2]))
+                    if pros_against:
+                        simple_details.append("Đối " + ", ".join(pros_against[:2]))
+                    msg_compact = f"📖 Trận vừa xong: {hero_name}{role_part} {res_str}{dur_str}{mmr_part} | KDA: {kda}{pmp_part} | Pro: {', '.join(simple_details)}"
                     if len(msg_compact) <= 195:
                         return msg_compact
                 return msg[:192] + "..."
@@ -1585,6 +1632,82 @@ class OpenDotaClient:
         ]
         chosen_idx = self._draw_from_deck(self._covy_deck, len(quotes))
         return quotes[chosen_idx]
+
+    def get_today_pros_message(self) -> str:
+        """Thống kê các pro player mà streamer đã gặp trong ca stream hôm nay."""
+        try:
+            now = datetime.now(self.tz)
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+
+            session_matches = self.get_session_matches()
+            target_matches = [
+                m for m in session_matches
+                if (start_ts := self._start_time_epoch(m)) is not None
+                and start_ts >= today_start
+            ]
+            if not target_matches:
+                target_matches = session_matches
+
+            if not target_matches:
+                return f"🌟 Ca stream hôm nay ({now.strftime('%d/%m')}): Chưa có trận đấu nào được ghi nhận."
+
+            pros_summary: Dict[str, Dict[str, Any]] = {}
+            for m in target_matches:
+                is_radiant = m.get("player_slot", 0) < 128
+                won = (m.get("radiant_win") and is_radiant) or (not m.get("radiant_win") and not is_radiant)
+                for p in m.get("pros", []):
+                    name = p["name"]
+                    if name not in pros_summary:
+                        pros_summary[name] = {"with_w": 0, "with_l": 0, "vs_w": 0, "vs_l": 0, "heroes": []}
+                    if p.get("is_with"):
+                        if won:
+                            pros_summary[name]["with_w"] += 1
+                        else:
+                            pros_summary[name]["with_l"] += 1
+                    else:
+                        if won:
+                            pros_summary[name]["vs_w"] += 1
+                        else:
+                            pros_summary[name]["vs_l"] += 1
+                    h_name = self.get_hero_short_name(p.get("hero_id", 0))
+                    if h_name and h_name not in pros_summary[name]["heroes"]:
+                        pros_summary[name]["heroes"].append(h_name)
+
+            if not pros_summary:
+                return f"🌟 Ca stream hôm nay ({now.strftime('%d/%m')}): Chưa gặp Pro Player nào trong các trận đã đấu."
+
+            pro_items = []
+            for name, s in pros_summary.items():
+                stats = []
+                if s["with_w"] or s["with_l"]:
+                    stats.append(f"{s['with_w']}W-{s['with_l']}L cùng" if (s['with_w'] and s['with_l']) else (f"{s['with_w']}W cùng" if s['with_w'] else f"{s['with_l']}L cùng"))
+                if s["vs_w"] or s["vs_l"]:
+                    stats.append(f"{s['vs_w']}W-{s['vs_l']}L đối" if (s['vs_w'] and s['vs_l']) else (f"{s['vs_w']}W đối" if s['vs_w'] else f"{s['vs_l']}L đối"))
+                stat_str = ", ".join(stats)
+                pro_items.append(f"{name} ({stat_str})")
+
+            base_msg = f"🌟 Pro gặp hôm nay ({now.strftime('%d/%m')}): "
+            included = []
+            has_more = False
+            for item in pro_items:
+                max_len = 182 if (len(included) + 1 < len(pro_items)) else 185
+                test_str = ", ".join(included + [item])
+                if len(base_msg + test_str) <= max_len:
+                    included.append(item)
+                else:
+                    has_more = True
+                    break
+
+            if not included:
+                included = pro_items[:1]
+
+            res_str = base_msg + ", ".join(included)
+            if has_more:
+                res_str += "..."
+            return res_str
+        except Exception as e:
+            logger.error(f"Lỗi trong get_today_pros_message: {e}", exc_info=True)
+            return "⚠️ Máy chủ đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_pro_message(self, query: Optional[str] = None) -> str:
         """Generate response for !pro <tên>: thống kê tỉ lệ đối đầu với pro player cụ thể."""

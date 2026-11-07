@@ -259,9 +259,11 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_today_message()
         elif cmd_key in ["!rank"]:
             reply = self.dota.get_rank_message()
-        elif cmd_key in ["!streak", "!recent", "!heroes", "!mate", "!covy", "!connapse", "!pro", "!pros"]:
+        elif cmd_key in ["!streak", "!recent", "!heroes", "!mate", "!covy", "!connapse"]:
             logger.info(f"Lệnh '{cmd_key}' đang tạm thời bị khóa. Bỏ qua.")
             return None
+        elif cmd_key in ["!pro", "!pros"]:
+            reply = self.dota.get_today_pros_message()
         elif cmd_key in ["!live"]:
             reply = self.dota.get_live_message()
         elif cmd_key in ["!career"]:
@@ -278,8 +280,8 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_last_message()
         elif cmd_key in ["!help"]:
             reply = (
-                "📜 Lệnh: !today, !last, !rank, !live, !career, !funfact. "
-                "⏱️ Chờ 10s giữa các lệnh, 1 phút nếu lặp lại cùng 1 lệnh. "
+                "📜 Lệnh: !today, !last, !rank, !live, !pro, !career, !funfact. "
+                "⏱️ Chờ 10s giữa các lệnh, 1p nếu lặp lại cùng 1 lệnh. "
                 "Bot chưa kịp rep hãy gõ lại nhé! Gõ !quota để kiểm tra số tin còn lại của BOT."
             )
         else:
