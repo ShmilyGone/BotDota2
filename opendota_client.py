@@ -1248,53 +1248,72 @@ class OpenDotaClient:
                 )
 
             q_raw = query.strip().lower()
+            # Map alias sang account_id cụ thể hoặc tên pro
+            PRO_ACCOUNT_MAP = {
+                "paparazi": 137193239,
+                "eurus": 137193239,
+                "paparazi灬": 137193239,
+            }
             PRO_ALIASES = {
                 "crit": "cr1t",
                 "malrine": "malr1ne",
                 "marl1ne": "malr1ne",
                 "23": "23savage",
                 "nts": "nothingtosay",
-                "ana": "ananas$s"
+                "ana": "ananas$s",
             }
-            q_target = PRO_ALIASES.get(q_raw, q_raw)
-
-            def _clean(s: str) -> str:
-                return re.sub(r"[^a-z0-9]", "", (s or "").lower())
-
-            q_clean = _clean(q_target)
             matched = None
-
-            # 1. Khớp chính xác tên chuẩn
-            for p in pros:
-                if _clean(p.get("name")) == q_clean:
-                    matched = p
-                    break
-
-            # 2. Khớp bắt đầu bằng (prefix)
-            if not matched:
+            if q_raw in PRO_ACCOUNT_MAP:
+                target_acc_id = PRO_ACCOUNT_MAP[q_raw]
                 for p in pros:
-                    if _clean(p.get("name")).startswith(q_clean):
+                    if p.get("account_id") == target_acc_id:
                         matched = p
                         break
 
-            # 3. Khớp chuỗi con trong tên
             if not matched:
-                for p in pros:
-                    if q_clean in _clean(p.get("name")):
-                        matched = p
-                        break
+                q_target = PRO_ALIASES.get(q_raw, q_raw)
 
-            # 4. Khớp trong Steam personaname
-            if not matched:
-                for p in pros:
-                    if q_clean in _clean(p.get("personaname")):
-                        matched = p
-                        break
+                def _clean(s: str) -> str:
+                    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+                q_clean = _clean(q_target)
+
+                if q_clean:
+                    # 1. Khớp chính xác tên chuẩn
+                    for p in pros:
+                        if _clean(p.get("name")) == q_clean:
+                            matched = p
+                            break
+
+                    # 2. Khớp bắt đầu bằng (prefix)
+                    if not matched:
+                        for p in pros:
+                            if _clean(p.get("name")).startswith(q_clean):
+                                matched = p
+                                break
+
+                    # 3. Khớp chuỗi con trong tên
+                    if not matched:
+                        for p in pros:
+                            if q_clean in _clean(p.get("name")):
+                                matched = p
+                                break
+
+                    # 4. Khớp trong Steam personaname
+                    if not matched:
+                        for p in pros:
+                            if q_clean in _clean(p.get("personaname")):
+                                matched = p
+                                break
 
             if not matched:
                 return f"⚠️ Streamer chưa từng thi đấu cùng hoặc đối đầu với pro player nào có tên khớp '{query.strip()}'."
 
-            p_name = matched.get("name") or matched.get("personaname")
+            # Nếu pro dùng ký tự lạ hoặc tên tiếng Trung trên Steam, hiển thị kèm nickname nổi tiếng
+            custom_display_names = {
+                137193239: "Paparazi (Eurus / 无限)"
+            }
+            p_name = custom_display_names.get(matched.get("account_id")) or matched.get("name") or matched.get("personaname")
             tag = f" ({matched['team_tag']})" if matched.get("team_tag") else ""
             tot_g = matched.get("games", 0)
             w_g = matched.get("with_games", 0)
