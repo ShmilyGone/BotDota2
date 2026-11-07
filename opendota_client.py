@@ -11,6 +11,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 import threading
+from concurrent.futures import ThreadPoolExecutor
 import logging
 
 logger = logging.getLogger("OpenDotaClient")
@@ -374,6 +375,39 @@ class OpenDotaClient:
             logger.warning(f"Lỗi khi gọi STRATZ API: {e}")
             return []
 
+    def _fetch_d2pt_matches(self) -> List[Dict[str, Any]]:
+        """Fetch matches from Dota2ProTracker for pro/high MMR players in near real-time."""
+        try:
+            url = f"https://dota2protracker.com/player/{self.account_id}"
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+            resp = self.session.get(url, headers=headers, timeout=6)
+            if resp.status_code != 200:
+                return []
+            
+            pattern = re.compile(
+                rf'\{{match_id:(\d+),server_steam_id:[^,]*,lobby_id:[^,]*,lobby_type:[^,]*,clusterId:[^,]*,mmr:[^,]*,duration:(\d+),activate_time:(\d+),radiant_win:([01]).*?account_id:{self.account_id},hero_id:(\d+).*?is_radiant:([01]).*?kills:(\d+),deaths:(\d+),assists:(\d+)'
+            )
+            parsed_matches = []
+            for m in pattern.finditer(resp.text):
+                mid, dur, act, r_win, hid, is_rad, k, d, a = m.groups()
+                parsed_matches.append({
+                    "match_id": int(mid),
+                    "duration": int(dur),
+                    "start_time": int(act),
+                    "radiant_win": bool(int(r_win)),
+                    "hero_id": int(hid),
+                    "player_slot": 0 if int(is_rad) == 1 else 128,
+                    "kills": int(k),
+                    "deaths": int(d),
+                    "assists": int(a)
+                })
+            return parsed_matches
+        except Exception as e:
+            logger.debug(f"D2PT fetch error: {e}")
+            return []
+
     def _fetch_steam_matches(self) -> List[Dict[str, Any]]:
         """Fetch real-time matches directly from Valve Steam Web API if STEAM_API_KEY is provided."""
         if not self.steam_api_key:
@@ -385,14 +419,16 @@ class OpenDotaClient:
                 "account_id": self.account_id,
                 "matches_requested": 10
             }
-            resp = self.session.get(url, params=params, timeout=8)
+            # Use requests directly without 503-retry adapter to prevent freezing
+            resp = requests.get(url, params=params, timeout=3)
             if resp.status_code != 200:
+                logger.warning(f"Steam Web API (GetMatchHistory) trả về status {resp.status_code} (Máy chủ Valve có thể đang bận/bảo trì).")
                 return []
             data = resp.json().get("result", {})
             raw_matches = data.get("matches", [])
             
             parsed_matches = []
-            for rm in raw_matches:
+            for rm in raw_matches[:5]:
                 match_id = rm.get("match_id")
                 start_time = rm.get("start_time")
                 
@@ -404,7 +440,7 @@ class OpenDotaClient:
                 player_slot = player_entry.get("player_slot", 0)
                 
                 det_url = "https://api.steampowered.com/IDOTA2Match_570/GetMatchDetails/v1/"
-                det_resp = self.session.get(det_url, params={"key": self.steam_api_key, "match_id": match_id}, timeout=6)
+                det_resp = requests.get(det_url, params={"key": self.steam_api_key, "match_id": match_id}, timeout=3)
                 if det_resp.status_code == 200:
                     d_data = det_resp.json().get("result", {})
                     radiant_win = d_data.get("radiant_win", False)
@@ -413,28 +449,24 @@ class OpenDotaClient:
                     kills = p_detail.get("kills", 0)
                     deaths = p_detail.get("deaths", 0)
                     assists = p_detail.get("assists", 0)
-                else:
-                    radiant_win = False
-                    duration = 0
-                    kills, deaths, assists = 0, 0, 0
-
-                parsed_matches.append({
-                    "match_id": match_id,
-                    "player_slot": player_slot,
-                    "radiant_win": radiant_win,
-                    "duration": duration,
-                    "hero_id": hero_id,
-                    "start_time": start_time,
-                    "kills": kills,
-                    "deaths": deaths,
-                    "assists": assists
-                })
+                    parsed_matches.append({
+                        "match_id": match_id,
+                        "player_slot": player_slot,
+                        "radiant_win": radiant_win,
+                        "duration": duration,
+                        "hero_id": hero_id,
+                        "start_time": start_time,
+                        "kills": kills,
+                        "deaths": deaths,
+                        "assists": assists
+                    })
             return parsed_matches
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Lỗi khi gọi Steam Web API: {e}")
             return []
 
     def get_recent_matches(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
-        """Fetch recent matches: compares STRATZ, Steam Web API and OpenDota to pick the most up-to-date data."""
+        """Fetch recent matches: aggregates D2PT, STRATZ, Steam Web API and OpenDota in parallel to pick the most up-to-date data."""
         now = time.time()
         if not force_refresh and self._matches_cache and (now - self._matches_cache_time < self.cache_ttl_matches):
             return self._matches_cache
@@ -443,37 +475,71 @@ class OpenDotaClient:
 
         candidates: List[List[Dict[str, Any]]] = []
 
-        # 1. Thử lấy từ STRATZ API
-        stratz_matches = self._fetch_stratz_matches()
-        if stratz_matches:
-            candidates.append(stratz_matches)
+        def _fetch_od_recent():
+            try:
+                res = self._api_get(f"players/{self.account_id}/recentMatches")
+                return res if isinstance(res, list) else []
+            except Exception as e:
+                logger.warning(f"Lỗi khi lấy recentMatches từ OpenDota: {e}")
+                return []
 
-        # 2. Thử lấy từ Steam Web API
-        steam_matches = self._fetch_steam_matches()
-        if steam_matches:
-            candidates.append(steam_matches)
+        def _fetch_od_matches():
+            try:
+                res = self._api_get(f"players/{self.account_id}/matches", params={"limit": 25})
+                return res if isinstance(res, list) else []
+            except Exception as e:
+                logger.warning(f"Lỗi khi lấy từ OpenDota: {e}")
+                return []
 
-        # 3. Lấy từ OpenDota (kết hợp cả /recentMatches cập nhật nhanh và /matches)
-        try:
-            recent_m = self._api_get(f"players/{self.account_id}/recentMatches")
-            if recent_m and isinstance(recent_m, list):
-                candidates.append(recent_m)
-        except Exception as e:
-            logger.warning(f"Lỗi khi lấy recentMatches từ OpenDota: {e}")
+        # Chạy song song tất cả các nguồn để giảm tối đa độ trễ (real-time trong 1-2s)
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            fut_d2pt = executor.submit(self._fetch_d2pt_matches)
+            fut_stratz = executor.submit(self._fetch_stratz_matches)
+            fut_steam = executor.submit(self._fetch_steam_matches)
+            fut_od_rec = executor.submit(_fetch_od_recent)
+            fut_od_mat = executor.submit(_fetch_od_matches)
 
-        try:
-            opendota_matches = self._api_get(f"players/{self.account_id}/matches", params={"limit": 25})
-            if opendota_matches and isinstance(opendota_matches, list):
-                candidates.append(opendota_matches)
-        except Exception as e:
-            logger.warning(f"Lỗi khi lấy từ OpenDota: {e}")
+            for fut in [fut_d2pt, fut_stratz, fut_steam, fut_od_rec, fut_od_mat]:
+                try:
+                    res = fut.result(timeout=5)
+                    if res and isinstance(res, list):
+                        candidates.append(res)
+                except Exception:
+                    pass
 
-        # Chọn nguồn có trận đấu mới nhất (start_time hoặc match_id cao nhất)
-        if candidates:
-            best_source = max(candidates, key=lambda match_list: match_list[0].get("match_id", 0) if match_list else 0)
-            self._matches_cache = best_source
+        # Gộp tất cả các trận đấu từ mọi nguồn theo match_id
+        merged: Dict[int, Dict[str, Any]] = {}
+        for match_list in candidates:
+            for m in match_list:
+                mid = m.get("match_id")
+                if not mid:
+                    continue
+                try:
+                    mid_int = int(mid)
+                except (ValueError, TypeError):
+                    continue
+                if mid_int not in merged:
+                    merged[mid_int] = m
+                else:
+                    curr = merged[mid_int]
+                    curr_has_kda = (curr.get("kills", 0) > 0 or curr.get("deaths", 0) > 0 or curr.get("assists", 0) > 0)
+                    new_has_kda = (m.get("kills", 0) > 0 or m.get("deaths", 0) > 0 or m.get("assists", 0) > 0)
+                    if not curr_has_kda and new_has_kda:
+                        merged[mid_int] = m
+                    elif curr.get("duration", 0) == 0 and m.get("duration", 0) > 0:
+                        merged[mid_int] = m
+                    elif curr.get("radiant_win") is None and m.get("radiant_win") is not None:
+                        merged[mid_int] = m
+
+        if merged:
+            sorted_matches = sorted(
+                merged.values(),
+                key=lambda x: (self._start_time_epoch(x) or 0, int(x.get("match_id", 0))),
+                reverse=True
+            )
+            self._matches_cache = sorted_matches
             self._matches_cache_time = now
-            return best_source
+            return sorted_matches
 
         # Nếu không có nguồn nào trả về, dùng cache cũ
         if self._matches_cache:
