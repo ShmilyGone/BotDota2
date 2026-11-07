@@ -62,14 +62,8 @@ def run_terminal_test(dota_client: OpenDotaClient):
                 print(dota_client.get_last_message())
             elif cmd_name in ["!rank"]:
                 print(dota_client.get_rank_message())
-            elif cmd_name in ["!streak", "!chuoi"]:
-                print(dota_client.get_streak_message())
-            elif cmd_name in ["!recent", "!5tran"]:
-                print(dota_client.get_recent_message())
-            elif cmd_name in ["!heroes", "!besthero"]:
-                print(dota_client.get_heroes_message())
-            elif cmd_name in ["!mate"]:
-                print(dota_client.get_mate_message())
+            elif cmd_name in ["!streak", "!chuoi", "!recent", "!5tran", "!heroes", "!besthero", "!mate"]:
+                print(f"⚠️ Lệnh '{cmd_name}' đang tạm thời bị khóa.")
             elif cmd_name in ["!live"]:
                 print(dota_client.get_live_message())
             elif cmd_name in ["!career", "!totals"]:
@@ -79,7 +73,7 @@ def run_terminal_test(dota_client: OpenDotaClient):
             elif cmd_name in ["!connapse", "!collapse"]:
                 print(dota_client.get_connapse_message())
             elif cmd_name in ["!help", "!lenh"]:
-                print("📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live, !career, !funfact, !connapse")
+                print("📜 Lệnh có sẵn: !today, !last, !rank, !live, !career, !funfact, !connapse")
             else:
                 print(f"❓ Không nhận diện được lệnh '{cmd}'. Thử: !today, !rank, !career, !funfact, !connapse")
         except (KeyboardInterrupt, EOFError):

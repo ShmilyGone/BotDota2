@@ -256,14 +256,9 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_today_message()
         elif cmd_key in ["!rank"]:
             reply = self.dota.get_rank_message()
-        elif cmd_key in ["!streak"]:
-            reply = self.dota.get_streak_message()
-        elif cmd_key in ["!recent"]:
-            reply = self.dota.get_recent_message()
-        elif cmd_key in ["!heroes"]:
-            reply = self.dota.get_heroes_message()
-        elif cmd_key in ["!mate"]:
-            reply = self.dota.get_mate_message()
+        elif cmd_key in ["!streak", "!recent", "!heroes", "!mate", "!pro", "!pros"]:
+            logger.info(f"Lệnh '{cmd_key}' đang tạm thời bị khóa. Bỏ qua.")
+            return None
         elif cmd_key in ["!live"]:
             reply = self.dota.get_live_message()
         elif cmd_key in ["!career"]:
@@ -274,15 +269,12 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_connapse_message()
         elif cmd_key in ["!2rax", "!tnc", "!2raxtnc"]:
             reply = self.dota.get_tworax_message()
-        elif cmd_key in ["!pro", "!pros"]:
-            logger.info(f"Lệnh '{cmd_key}' đã bị khóa để tiết kiệm quota. Bỏ qua.")
-            return None
         elif cmd_key in ["!dieback"]:
             reply = self.dota.get_dieback_message(arg)
         elif cmd_key in ["!last"]:
             reply = self.dota.get_last_message()
         elif cmd_key in ["!help"]:
-            reply = "📜 Lệnh có sẵn: !today, !last, !rank, !streak, !recent, !heroes, !mate, !live, !career, !funfact, !connapse, !dieback."
+            reply = "📜 Lệnh có sẵn: !today, !last, !rank, !live, !career, !funfact, !connapse, !dieback."
         else:
             logger.info(f"Lệnh không hỗ trợ: '{cmd_raw}'. Bỏ qua.")
             return None
