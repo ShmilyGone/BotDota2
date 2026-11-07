@@ -62,7 +62,7 @@ def run_terminal_test(dota_client: OpenDotaClient):
                 print(dota_client.get_last_message())
             elif cmd_name in ["!rank"]:
                 print(dota_client.get_rank_message())
-            elif cmd_name in ["!streak", "!chuoi", "!recent", "!5tran", "!heroes", "!besthero", "!mate"]:
+            elif cmd_name in ["!streak", "!chuoi", "!recent", "!5tran", "!heroes", "!besthero", "!mate", "!covy", "!vy", "!hanvy", "!leminhhanvy"]:
                 print(f"⚠️ Lệnh '{cmd_name}' đang tạm thời bị khóa.")
             elif cmd_name in ["!live"]:
                 print(dota_client.get_live_message())
@@ -72,14 +72,12 @@ def run_terminal_test(dota_client: OpenDotaClient):
                 print(dota_client.get_funfact_message())
             elif cmd_name in ["!connapse", "!collapse"]:
                 print(dota_client.get_connapse_message())
-            elif cmd_name in ["!covy", "!vy", "!hanvy", "!leminhhanvy"]:
-                print(dota_client.get_covy_message())
             elif cmd_name in ["!quota"]:
                 from account_pool import AccountPool
                 p = AccountPool()
                 print(p.get_quota_chat_message())
             elif cmd_name in ["!help", "!lenh"]:
-                print("📜 Lệnh: !today, !last, !rank, !live, !covy, !quota, !career, !funfact, !connapse. ⏱️ Chờ 10s giữa các lệnh, 1 phút nếu lặp lại cùng một lệnh. Nếu bot chưa kịp trả lời, bạn hãy thử gõ lại nhé!")
+                print("📜 Lệnh: !today, !last, !rank, !live, !quota, !career, !funfact, !connapse. ⏱️ Chờ 10s giữa các lệnh, 1 phút nếu lặp lại cùng một lệnh. Nếu bot chưa kịp trả lời, bạn hãy thử gõ lại nhé!")
             else:
                 print(f"❓ Không nhận diện được lệnh '{cmd}'. Thử: !today, !rank, !career, !funfact, !connapse")
         except (KeyboardInterrupt, EOFError):
