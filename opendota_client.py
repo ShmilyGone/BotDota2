@@ -1351,6 +1351,8 @@ class OpenDotaClient:
                 76904792: "poloson (Bleed)",
                 219755398: "Jîng (Nemesis)",
                 392565237: "JACKBOYS (Nemesis)",
+                181716137: "inYourdreaM (IYD)",
+                184950344: "Kuku (Talon)",
             }
 
             if not query or not query.strip():
@@ -1595,6 +1597,9 @@ class OpenDotaClient:
                 "nts": 173978074,
                 "nothingtosay": 173978074,
                 "poloson": 76904792,
+                "inyourdream": 181716137,
+                "iyd": 181716137,
+                "kuku": 184950344,
             }
 
             matched = None
@@ -1621,6 +1626,7 @@ class OpenDotaClient:
                 "nts": "nothingtosay",
                 "ana": "ananas$s",
                 "super": "yakult",
+                "iyd": "inyourdream",
             }
 
             if not matched:
