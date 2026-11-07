@@ -279,7 +279,11 @@ class YouTubeLiveChatBot:
         elif cmd_key in ["!last"]:
             reply = self.dota.get_last_message()
         elif cmd_key in ["!help"]:
-            reply = "📜 Lệnh có sẵn: !today, !last, !rank, !live, !covy, !career, !funfact, !connapse, !dieback."
+            reply = (
+                f"📜 Lệnh: !today, !last, !rank, !live, !covy, !career, !funfact, !connapse. "
+                f"⏱️ Chờ {int(self.global_cooldown)}s giữa các lệnh khác nhau, {int(self.command_cooldown)}s cho cùng 1 lệnh. "
+                f"Nếu bot chưa rep, hãy thử gõ lại sau vài giây nhé!"
+            )
         else:
             logger.info(f"Lệnh không hỗ trợ: '{cmd_raw}'. Bỏ qua.")
             return None

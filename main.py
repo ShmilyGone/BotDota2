@@ -75,7 +75,7 @@ def run_terminal_test(dota_client: OpenDotaClient):
             elif cmd_name in ["!covy", "!vy", "!hanvy", "!leminhhanvy"]:
                 print(dota_client.get_covy_message())
             elif cmd_name in ["!help", "!lenh"]:
-                print("📜 Lệnh có sẵn: !today, !last, !rank, !live, !covy, !career, !funfact, !connapse")
+                print("📜 Lệnh: !today, !last, !rank, !live, !covy, !career, !funfact, !connapse. ⏱️ Chờ 10s giữa các lệnh khác nhau, 20s cho cùng 1 lệnh. Nếu bot chưa rep, hãy thử gõ lại sau vài giây nhé!")
             else:
                 print(f"❓ Không nhận diện được lệnh '{cmd}'. Thử: !today, !rank, !career, !funfact, !connapse")
         except (KeyboardInterrupt, EOFError):
