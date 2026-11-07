@@ -6,7 +6,7 @@ import re
 import random
 from collections import Counter
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, List, Union, Tuple
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
@@ -687,6 +687,51 @@ class OpenDotaClient:
                     break
         return session_matches
 
+    def get_current_stream_matches(self) -> Tuple[List[Dict[str, Any]], str]:
+        """
+        Lấy danh sách các trận đấu thuộc ca stream hiện tại hoặc ca hôm nay.
+        Xử lý thông minh khi ca stream kéo dài xuyên qua nửa đêm (0h sáng):
+        - Nếu ca stream đang diễn ra (trận gần nhất cách đây <= session_gap_hours):
+          gom toàn bộ các trận của ca (kể cả trước và sau 0h).
+        - Nếu ca stream đã kết thúc (> session_gap_hours):
+          chỉ lấy nếu ca bắt đầu từ hôm nay (sau 0h); nếu ca từ hôm qua thì coi như
+          hôm nay chưa có ca stream mới.
+        Trả về: (target_matches, date_str)
+        """
+        now = datetime.now(self.tz)
+        today_start_ts = now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+
+        session_matches = self.get_session_matches()
+        if not session_matches:
+            return [], now.strftime("%d/%m")
+
+        latest_m = session_matches[0]
+        lat_ts = self._start_time_epoch(latest_m) or 0
+        lat_dur = latest_m.get("duration") or 0
+        time_since_latest = (now.timestamp() - (lat_ts + lat_dur)) / 3600.0
+
+        is_active_session = time_since_latest <= self.session_gap_hours
+
+        oldest_m = session_matches[-1]
+        oldest_ts = self._start_time_epoch(oldest_m) or 0
+        oldest_dt = datetime.fromtimestamp(oldest_ts, tz=self.tz)
+
+        if oldest_dt.date() != now.date():
+            if oldest_dt.month == now.month:
+                date_str = f"{oldest_dt.strftime('%d')}-{now.strftime('%d/%m')}"
+            else:
+                date_str = f"{oldest_dt.strftime('%d/%m')}-{now.strftime('%d/%m')}"
+        else:
+            date_str = now.strftime("%d/%m")
+
+        if is_active_session:
+            return session_matches, date_str
+        else:
+            if oldest_ts >= today_start_ts:
+                return session_matches, date_str
+            else:
+                return [], now.strftime("%d/%m")
+
     def format_rank(self, rank_tier: Optional[int], leaderboard_rank: Optional[int]) -> str:
         """Parse rank_tier and leaderboard_rank into human-readable string."""
         if not rank_tier:
@@ -784,21 +829,11 @@ class OpenDotaClient:
         try:
             player = self.get_player_data()
             name = player.get("profile", {}).get("personaname", "Streamer")
-            now = datetime.now(self.tz)
 
-            # Chỉ tính trận từ 0h hôm nay (theo múi giờ đã cấu hình, mặc định GMT+7).
-            # Trước đây hàm chỉ gom theo khoảng cách < 5 tiếng giữa các trận, nên
-            # hôm nào chưa đánh thì nó vẫn trả về cả ca hôm qua.
-            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            today_start_ts = today_start.timestamp()
-            session_matches = [
-                m for m in self.get_session_matches()
-                if (start_ts := self._start_time_epoch(m)) is not None
-                and start_ts >= today_start_ts
-            ]
+            session_matches, date_str = self.get_current_stream_matches()
 
             if not session_matches:
-                return f"📅 Ca stream hôm nay ({now.strftime('%d/%m')}): {name} chưa có trận đấu nào được ghi nhận."
+                return f"📅 Ca stream hôm nay ({date_str}): {name} chưa có trận đấu nào được ghi nhận."
 
             wins = 0
             losses = 0
@@ -837,7 +872,7 @@ class OpenDotaClient:
                 mmr_str = f" [Avg MMR {mmr_val:.1f}k]"
 
             base_msg = (
-                f"🔥 Ca hôm nay ({now.strftime('%d/%m')}): {wins}W - {losses}L ({wr:.1f}%) | "
+                f"🔥 Ca hôm nay ({date_str}): {wins}W - {losses}L ({wr:.1f}%) | "
                 f"Vừa xong: {lat_hero} ({lat_kda}) {lat_res}{mmr_str} | Tướng: "
             )
 
@@ -1636,20 +1671,10 @@ class OpenDotaClient:
     def get_today_pros_message(self) -> str:
         """Thống kê các pro player mà streamer đã gặp trong ca stream hôm nay."""
         try:
-            now = datetime.now(self.tz)
-            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
-
-            session_matches = self.get_session_matches()
-            target_matches = [
-                m for m in session_matches
-                if (start_ts := self._start_time_epoch(m)) is not None
-                and start_ts >= today_start
-            ]
-            if not target_matches:
-                target_matches = session_matches
+            target_matches, date_str = self.get_current_stream_matches()
 
             if not target_matches:
-                return f"🌟 Ca stream hôm nay ({now.strftime('%d/%m')}): Chưa có trận đấu nào được ghi nhận."
+                return f"🌟 Ca stream hôm nay ({date_str}): Chưa có trận đấu nào được ghi nhận."
 
             pros_summary: Dict[str, Dict[str, Any]] = {}
             for m in target_matches:
@@ -1674,7 +1699,7 @@ class OpenDotaClient:
                         pros_summary[name]["heroes"].append(h_name)
 
             if not pros_summary:
-                return f"🌟 Ca stream hôm nay ({now.strftime('%d/%m')}): Chưa gặp Pro Player nào trong các trận đã đấu."
+                return f"🌟 Ca stream hôm nay ({date_str}): Chưa gặp Pro Player nào trong các trận đã đấu."
 
             pro_items = []
             for name, s in pros_summary.items():
@@ -1686,7 +1711,7 @@ class OpenDotaClient:
                 stat_str = ", ".join(stats)
                 pro_items.append(f"{name} ({stat_str})")
 
-            base_msg = f"🌟 Pro gặp hôm nay ({now.strftime('%d/%m')}): "
+            base_msg = f"🌟 Pro gặp hôm nay ({date_str}): "
             included = []
             has_more = False
             for item in pro_items:
@@ -2225,10 +2250,10 @@ class OpenDotaClient:
                 return f"💀 Thống kê 100 trận gần nhất: {len(all_diebacks)} pha Dieback!{top_str}{fastest_str}"
 
             # 2. Mặc định: Thống kê trong ca stream hôm nay (session)
-            session_matches = self.get_session_matches()
+            session_matches, date_str = self.get_current_stream_matches()
             if not session_matches:
                 tot_100 = sum(len(d.get("diebacks", [])) for d in self._dieback_cache.values())
-                return f"📅 Ca stream hôm nay chưa có trận nào. Tổng 100 trận gần nhất có {tot_100} pha Dieback! Kỷ lục: Storm Spirit vừa BB xong đếm số sau 6s bởi Huskar."
+                return f"📅 Ca stream hôm nay ({date_str}) chưa có trận nào. Tổng 100 trận gần nhất có {tot_100} pha Dieback! Kỷ lục: Storm Spirit vừa BB xong đếm số sau 6s bởi Huskar."
 
             session_diebacks = []
             for m in session_matches:
