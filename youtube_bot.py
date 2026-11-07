@@ -278,7 +278,7 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_last_message()
         elif cmd_key in ["!help"]:
             reply = (
-                "Lệnh: !today, !last, !rank, !live, !career, !funfact. "
+                "📜 Lệnh: !today, !last, !rank, !live, !career, !funfact. "
                 "⏱️ Chờ 10s giữa các lệnh, 1 phút nếu lặp lại cùng 1 lệnh. "
                 "Bot chưa kịp rep hãy gõ lại nhé! Gõ !quota để kiểm tra số tin còn lại của BOT."
             )

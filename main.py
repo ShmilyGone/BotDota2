@@ -75,7 +75,7 @@ def run_terminal_test(dota_client: OpenDotaClient):
                 p = AccountPool()
                 print(p.get_quota_chat_message())
             elif cmd_name in ["!help", "!lenh"]:
-                print("Lệnh: !today, !last, !rank, !live, !career, !funfact. ⏱️ Chờ 10s giữa các lệnh, 1 phút nếu lặp lại cùng 1 lệnh. Bot chưa kịp rep hãy gõ lại nhé! Gõ !quota để kiểm tra số tin còn lại của BOT.")
+                print("📜 Lệnh: !today, !last, !rank, !live, !career, !funfact. ⏱️ Chờ 10s giữa các lệnh, 1 phút nếu lặp lại cùng 1 lệnh. Bot chưa kịp rep hãy gõ lại nhé! Gõ !quota để kiểm tra số tin còn lại của BOT.")
             else:
                 print(f"❓ Không nhận diện được lệnh '{cmd}'. Thử: !today, !rank, !career, !funfact, !connapse")
         except (KeyboardInterrupt, EOFError):
