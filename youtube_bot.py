@@ -269,12 +269,13 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_funfact_message()
         elif cmd_key in ["!connapse"]:
             reply = self.dota.get_connapse_message()
-        elif cmd_key in ["!pro"]:
-            reply = self.dota.get_pro_message(arg)
+        elif cmd_key in ["!pro", "!pros"]:
+            logger.info(f"Lệnh '{cmd_key}' đã bị khóa để tiết kiệm quota. Bỏ qua.")
+            return None
         elif cmd_key in ["!dieback"]:
             reply = self.dota.get_dieback_message(arg)
         elif cmd_key in ["!help"]:
-            reply = "📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live, !career, !funfact, !connapse, !pro, !dieback."
+            reply = "📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live, !career, !funfact, !connapse, !dieback."
         else:
             logger.info(f"Lệnh không hỗ trợ: '{cmd_raw}'. Bỏ qua.")
             return None
