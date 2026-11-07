@@ -1404,45 +1404,45 @@ class OpenDotaClient:
                         f"Đối đầu {a_g} trận ({a_w}W-{a_g - a_w}L, {a_wr:.1f}%)"
                     )
 
-            # 2. Giải thích chi tiết cho các siêu sao phương Tây / Bắc Mỹ mà streamer chưa từng gặp do khác khu vực server hoặc do dùng acc smurf ẩn match data
+            # 2. Giải thích chi tiết cho các siêu sao phương Tây / Bắc Mỹ mà streamer chưa từng gặp do dùng acc phụ / ẩn API khi sang SEA
             UNMET_PRO_EXPLANATIONS = {
                 # Arteezy
-                "rtz": "⚠️ Arteezy (RTZ) chủ yếu đánh cụm Bắc Mỹ (NA). Khi bootcamp SEA, RTZ thường dùng acc smurf ẩn match data nên API không lưu lịch sử công khai.",
-                "arteezy": "⚠️ Arteezy (RTZ) chủ yếu đánh cụm Bắc Mỹ (NA). Khi bootcamp SEA, RTZ thường dùng acc smurf ẩn match data nên API không lưu lịch sử công khai.",
-                "artour": "⚠️ Arteezy (RTZ) chủ yếu đánh cụm Bắc Mỹ (NA). Khi bootcamp SEA, RTZ thường dùng acc smurf ẩn match data nên API không lưu lịch sử công khai.",
+                "rtz": "⚠️ Arteezy (RTZ) chủ yếu đánh cụm Bắc Mỹ (NA). Khi sang SEA bootcamp, RTZ thường dùng acc phụ ẩn dữ liệu nên API không lưu lịch sử công khai.",
+                "arteezy": "⚠️ Arteezy (RTZ) chủ yếu đánh cụm Bắc Mỹ (NA). Khi sang SEA bootcamp, RTZ thường dùng acc phụ ẩn dữ liệu nên API không lưu lịch sử công khai.",
+                "artour": "⚠️ Arteezy (RTZ) chủ yếu đánh cụm Bắc Mỹ (NA). Khi sang SEA bootcamp, RTZ thường dùng acc phụ ẩn dữ liệu nên API không lưu lịch sử công khai.",
                 # Miracle-
-                "miracle": "⚠️ Miracle- chủ yếu thi đấu tại cụm máy chủ Châu Âu (WEU) / Trung Đông (MENA), khác máy chủ với streamer.",
-                "miracle-": "⚠️ Miracle- chủ yếu thi đấu tại cụm máy chủ Châu Âu (WEU) / Trung Đông (MENA), khác máy chủ với streamer.",
+                "miracle": "⚠️ Miracle- chủ yếu đánh cụm EU/MENA. Khi sang SEA bootcamp/đánh giải, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
+                "miracle-": "⚠️ Miracle- chủ yếu đánh cụm EU/MENA. Khi sang SEA bootcamp/đánh giải, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
                 # SumaiL
-                "sumail": "⚠️ SumaiL (The King) chủ yếu thi đấu tại cụm máy chủ Bắc Mỹ / Châu Âu, khác máy chủ với streamer.",
-                "king": "⚠️ SumaiL (The King) chủ yếu thi đấu tại cụm máy chủ Bắc Mỹ / Châu Âu, khác máy chủ với streamer.",
+                "sumail": "⚠️ SumaiL (The King) chủ yếu đánh cụm NA/EU. Khi sang SEA bootcamp, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
+                "king": "⚠️ SumaiL (The King) chủ yếu đánh cụm NA/EU. Khi sang SEA bootcamp, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
                 # Yatoro / Raddan
-                "yatoro": "⚠️ Yatoro (Raddan) chủ yếu thi đấu tại cụm máy chủ Đông Âu (EEU) / Tây Âu, khác khu vực với streamer.",
-                "raddan": "⚠️ Yatoro (Raddan) chủ yếu thi đấu tại cụm máy chủ Đông Âu (EEU) / Tây Âu, khác khu vực với streamer.",
+                "yatoro": "⚠️ Yatoro (Raddan) chủ yếu đánh cụm Đông Âu. Khi sang SEA bootcamp/đánh giải, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
+                "raddan": "⚠️ Yatoro (Raddan) chủ yếu đánh cụm Đông Âu. Khi sang SEA bootcamp/đánh giải, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
                 # Satanic
-                "satanic": "⚠️ Satanic chủ yếu thi đấu tại cụm máy chủ Đông Âu / Châu Âu, khác máy chủ với streamer.",
+                "satanic": "⚠️ Satanic chủ yếu đánh cụm Đông Âu/EU. Khi sang SEA bootcamp, tuyển thủ thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
                 # ATF / Ammar
-                "atf": "⚠️ ATF (Ammar The F) chủ yếu thi đấu tại cụm máy chủ Châu Âu / MENA, khác máy chủ với streamer.",
-                "ammar": "⚠️ ATF (Ammar The F) chủ yếu thi đấu tại cụm máy chủ Châu Âu / MENA, khác máy chủ với streamer.",
+                "atf": "⚠️ ATF (Ammar) chủ yếu đánh cụm EU/MENA. Khi sang SEA bootcamp/đánh giải, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
+                "ammar": "⚠️ ATF (Ammar) chủ yếu đánh cụm EU/MENA. Khi sang SEA bootcamp/đánh giải, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
                 # Quinn / CCnC
-                "quinn": "⚠️ Quinn (CCnC) chủ yếu thi đấu tại cụm máy chủ Châu Âu / Bắc Mỹ, khác máy chủ với streamer.",
-                "ccnc": "⚠️ Quinn (CCnC) chủ yếu thi đấu tại cụm máy chủ Châu Âu / Bắc Mỹ, khác máy chủ với streamer.",
+                "quinn": "⚠️ Quinn (CCnC) chủ yếu đánh cụm EU/NA. Khi sang SEA bootcamp/đánh giải, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
+                "ccnc": "⚠️ Quinn (CCnC) chủ yếu đánh cụm EU/NA. Khi sang SEA bootcamp/đánh giải, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
                 # Pure
-                "pure": "⚠️ Pure~ chủ yếu thi đấu tại cụm máy chủ Đông Âu / Châu Âu, khác máy chủ với streamer.",
+                "pure": "⚠️ Pure~ chủ yếu đánh cụm Đông Âu/EU. Khi sang SEA bootcamp/đánh giải, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
                 # TORONTOTOKYO
-                "torontotokyo": "⚠️ TORONTOTOKYO chủ yếu thi đấu tại cụm máy chủ Đông Âu / Châu Âu, khác máy chủ với streamer.",
+                "torontotokyo": "⚠️ TORONTOTOKYO chủ yếu đánh cụm Đông Âu. Khi sang SEA bootcamp, tuyển thủ thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
                 # Nightfall
-                "nightfall": "⚠️ Nightfall chủ yếu thi đấu tại cụm máy chủ Đông Âu / Châu Âu, khác máy chủ với streamer.",
+                "nightfall": "⚠️ Nightfall chủ yếu đánh cụm Đông Âu. Khi sang SEA bootcamp, tuyển thủ thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
                 # Skiter
-                "skiter": "⚠️ Skiter chủ yếu thi đấu tại cụm máy chủ Châu Âu, khác máy chủ với streamer.",
+                "skiter": "⚠️ Skiter chủ yếu đánh cụm Châu Âu. Khi sang SEA bootcamp/đánh giải, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
                 # Ceb & N0tail
-                "ceb": "⚠️ Ceb chủ yếu thi đấu tại cụm máy chủ Tây Âu (WEU), khác máy chủ với streamer.",
-                "notail": "⚠️ N0tail chủ yếu thi đấu tại cụm máy chủ Tây Âu (WEU), khác máy chủ với streamer.",
-                "n0tail": "⚠️ N0tail chủ yếu thi đấu tại cụm máy chủ Tây Âu (WEU), khác máy chủ với streamer.",
+                "ceb": "⚠️ Ceb chủ yếu đánh cụm Tây Âu. Khi sang SEA bootcamp/đánh giải, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
+                "notail": "⚠️ N0tail chủ yếu đánh cụm Tây Âu. Khi sang SEA bootcamp/đánh giải, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
+                "n0tail": "⚠️ N0tail chủ yếu đánh cụm Tây Âu. Khi sang SEA bootcamp/đánh giải, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
                 # Puppey & KuroKy
-                "puppey": "⚠️ Puppey chủ yếu thi đấu tại cụm máy chủ Tây Âu, khác máy chủ với streamer.",
-                "kuroky": "⚠️ KuroKy chủ yếu thi đấu tại cụm máy chủ Tây Âu, khác máy chủ với streamer.",
-                "kuro": "⚠️ KuroKy chủ yếu thi đấu tại cụm máy chủ Tây Âu, khác máy chủ với streamer.",
+                "puppey": "⚠️ Puppey chủ yếu đánh cụm Châu Âu. Khi sang SEA bootcamp/đánh giải, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
+                "kuroky": "⚠️ KuroKy chủ yếu đánh cụm Châu Âu. Khi sang SEA bootcamp/đánh giải, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
+                "kuro": "⚠️ KuroKy chủ yếu đánh cụm Châu Âu. Khi sang SEA bootcamp/đánh giải, anh thường dùng acc phụ hoặc ẩn dữ liệu nên API không lưu lịch sử công khai.",
             }
 
             if q_clean in UNMET_PRO_EXPLANATIONS:
@@ -1655,7 +1655,7 @@ class OpenDotaClient:
                                 break
 
             if not matched:
-                return f"⚠️ Không tìm thấy lịch sử đấu với '{query.strip()}'. Tuyển thủ có thể khác cụm máy chủ (EU/NA) hoặc dùng acc smurf ẩn match data."
+                return f"⚠️ Không tìm thấy lịch sử đấu với '{query.strip()}'. Tuyển thủ có thể dùng acc phụ hoặc tắt chia sẻ dữ liệu (ẩn API) nên không lưu công khai."
 
             has_custom = matched.get("account_id") in custom_display_names
             p_name = custom_display_names.get(matched.get("account_id")) or matched.get("name") or matched.get("personaname")
