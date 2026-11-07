@@ -30,6 +30,7 @@ def run_terminal_test(dota_client: OpenDotaClient):
     print(f"Player ID: {dota_client.account_id}")
     print("Gõ một lệnh bất kỳ để thử nghiệm (hoặc 'exit' để thoát):")
     print("  !today     - Kết quả thi đấu hôm nay (ca stream)")
+    print("  !last      - Thông số chi tiết trận vừa đánh xong (KDA, PMP, Avg MMR, đồ)")
     print("  !rank      - Rank hiện tại (kèm % thế giới)")
     print("  !streak    - Chuỗi thắng/thua hiện tại")
     print("  !recent    - Kết quả 10 trận gần nhất")
@@ -57,6 +58,8 @@ def run_terminal_test(dota_client: OpenDotaClient):
 
             if cmd_name in ["!today", "!homnay"]:
                 print(dota_client.get_today_message())
+            elif cmd_name in ["!last", "!chitiet", "!pmp", "!match"]:
+                print(dota_client.get_last_message())
             elif cmd_name in ["!rank"]:
                 print(dota_client.get_rank_message())
             elif cmd_name in ["!streak", "!chuoi"]:

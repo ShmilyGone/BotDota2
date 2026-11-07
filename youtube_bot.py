@@ -229,6 +229,9 @@ class YouTubeLiveChatBot:
             "!dongdoi": "!mate",
             "!ban": "!mate",
             "!dangdanh": "!live",
+            "!chitiet": "!last",
+            "!match": "!last",
+            "!pmp": "!last",
         }.get(cmd_raw, cmd_raw)
 
         rate_key = cmd_key
@@ -276,8 +279,10 @@ class YouTubeLiveChatBot:
             return None
         elif cmd_key in ["!dieback"]:
             reply = self.dota.get_dieback_message(arg)
+        elif cmd_key in ["!last"]:
+            reply = self.dota.get_last_message()
         elif cmd_key in ["!help"]:
-            reply = "📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live, !career, !funfact, !connapse, !dieback."
+            reply = "📜 Lệnh có sẵn: !today, !last, !rank, !streak, !recent, !heroes, !mate, !live, !career, !funfact, !connapse, !dieback."
         else:
             logger.info(f"Lệnh không hỗ trợ: '{cmd_raw}'. Bỏ qua.")
             return None

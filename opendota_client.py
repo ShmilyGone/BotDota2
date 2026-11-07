@@ -158,6 +158,16 @@ HERO_ABBREVIATIONS = {
     "Kez": "Kez"
 }
 
+ITEM_NAMES_D2PT = {
+    1: "Blink", 41: "Bottle", 36: "Wand", 29: "Boots", 48: "PT", 50: "Phase", 180: "Arcane", 214: "Tranquil", 220: "BoT",
+    259: "Kaya", 277: "Bloodstone", 116: "BKB", 609: "Shard", 96: "Shiva", 108: "Aghanim", 114: "Heart", 139: "Butterfly",
+    141: "Daedalus", 147: "Manta", 151: "Armlet", 154: "Invis", 158: "Halberd", 160: "Skadi", 166: "Maelstrom", 168: "Deso",
+    172: "Mask", 174: "Diffusal", 185: "Drum", 226: "Lotus", 232: "Aether", 235: "Octarine", 236: "DragonLance",
+    249: "SilverEdge", 250: "Bloodthorn", 252: "Echo", 254: "Glimmer", 263: "Hurricane", 267: "Vessel",
+    271: "HolyLocket", 279: "KayaSange", 286: "Nullifier", 600: "Gleipnir", 603: "MageSlayer", 604: "Falcon",
+    640: "EternalShroud", 655: "WindWaker", 1097: "Harpoon", 1107: "Phylactery", 1123: "Khanda", 1124: "Parasma"
+}
+
 class OpenDotaClient:
     def __init__(
         self,
@@ -387,13 +397,38 @@ class OpenDotaClient:
                 return []
             
             pattern = re.compile(
-                rf'\{{match_id:(\d+),server_steam_id:[^,]*,lobby_id:[^,]*,lobby_type:[^,]*,clusterId:[^,]*,mmr:[^,]*,duration:(\d+),activate_time:(\d+),radiant_win:([01]).*?account_id:{self.account_id},hero_id:(\d+).*?is_radiant:([01]).*?kills:(\d+),deaths:(\d+),assists:(\d+)'
+                rf'\{{match_id:(\d+),server_steam_id:[^,]*,lobby_id:[^,]*,lobby_type:[^,]*,clusterId:[^,]*,mmr:(\d+),duration:(\d+),activate_time:(\d+),radiant_win:([01]).*?account_id:{self.account_id},hero_id:(\d+).*?is_radiant:([01]).*?kills:(\d+),deaths:(\d+),assists:(\d+)'
             )
             parsed_matches = []
-            for m in pattern.finditer(resp.text):
-                mid, dur, act, r_win, hid, is_rad, k, d, a = m.groups()
+            txt = resp.text
+            for m in pattern.finditer(txt):
+                mid, mmr_val, dur, act, r_win, hid, is_rad, k, d, a = m.groups()
+                start_idx = m.start()
+                end_idx = txt.find('{match_id:', start_idx + 10)
+                chunk = txt[start_idx:end_idx] if end_idx != -1 else txt[start_idx:start_idx+30000]
+
+                role_m = re.search(r'role:"?([^",}]+)', chunk)
+                pmp_m = re.search(r'pmp:([-\d\.]+)', chunk)
+                nw_m = re.search(r'net_worth:(\d+)', chunk)
+                gpm_m = re.search(r'gold_per_min:(\d+)', chunk)
+                cs_m = re.search(r'last_hits:(\d+)', chunk)
+
+                it_chunk = re.search(r'items:\[(.*?)\]', chunk)
+                item_timeline = []
+                if it_chunk:
+                    for iid, minute, imp in re.findall(r'\{item_id:(\d+),minute:(-?\d+)[^}]*important:(true|false)', it_chunk.group(1)):
+                        iid_int = int(iid)
+                        min_int = int(minute)
+                        if min_int >= 0:
+                            iname = ITEM_NAMES_D2PT.get(iid_int)
+                            if iname and iname not in ['Bottle', 'Wand', 'Boots', 'PT', 'Phase', 'Arcane']:
+                                item_timeline.append(f"{iname} ({min_int}p)")
+                        elif iid_int == 609:
+                            item_timeline.append(f"Shard ({min_int}p)")
+
                 parsed_matches.append({
                     "match_id": int(mid),
+                    "mmr": int(mmr_val) if mmr_val else None,
                     "duration": int(dur),
                     "start_time": int(act),
                     "radiant_win": bool(int(r_win)),
@@ -401,7 +436,13 @@ class OpenDotaClient:
                     "player_slot": 0 if int(is_rad) == 1 else 128,
                     "kills": int(k),
                     "deaths": int(d),
-                    "assists": int(a)
+                    "assists": int(a),
+                    "role": role_m.group(1).strip() if role_m and role_m.group(1).strip() != 'unknown' else None,
+                    "pmp": float(pmp_m.group(1)) if pmp_m else None,
+                    "net_worth": int(nw_m.group(1)) if nw_m else None,
+                    "gold_per_min": int(gpm_m.group(1)) if gpm_m else None,
+                    "last_hits": int(cs_m.group(1)) if cs_m else None,
+                    "item_timeline": item_timeline[:4]
                 })
             return parsed_matches
         except Exception as e:
@@ -530,6 +571,12 @@ class OpenDotaClient:
                         merged[mid_int] = m
                     elif curr.get("radiant_win") is None and m.get("radiant_win") is not None:
                         merged[mid_int] = m
+                    
+                    # Giữ lại các trường chi tiết bổ sung từ D2PT/STRATZ nếu bản ghi hiện tại chưa có
+                    target = merged[mid_int]
+                    for field in ["mmr", "role", "pmp", "net_worth", "gold_per_min", "last_hits", "item_timeline"]:
+                        if m.get(field) is not None and target.get(field) is None:
+                            target[field] = m[field]
 
         if merged:
             sorted_matches = sorted(
@@ -740,9 +787,15 @@ class OpenDotaClient:
             lat_res = "Thắng ✅" if lat_won else "Thua ❌"
             lat_kda = f"{latest.get('kills', 0)}/{latest.get('deaths', 0)}/{latest.get('assists', 0)}"
 
+            # Thêm [Avg MMR 7.2k] nếu có
+            mmr_str = ""
+            if latest.get("mmr"):
+                mmr_val = float(latest["mmr"]) / 1000.0
+                mmr_str = f" [Avg MMR {mmr_val:.1f}k]"
+
             base_msg = (
                 f"🔥 Ca hôm nay ({now.strftime('%d/%m')}): {wins}W - {losses}L ({wr:.1f}%) | "
-                f"Vừa xong: {lat_hero} ({lat_kda}) {lat_res} | Tướng: "
+                f"Vừa xong: {lat_hero} ({lat_kda}) {lat_res}{mmr_str} | Tướng: "
             )
 
             # Dynamically include abbreviated heroes up to 185 chars, append '...' if truncated
@@ -770,6 +823,96 @@ class OpenDotaClient:
         except Exception as e:
             logger.error(f"Lỗi trong get_today_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+
+    def get_last_message(self) -> str:
+        """Generate response for !last / !chitiet command: thông số chi tiết trận vừa đánh xong."""
+        try:
+            matches = self.get_recent_matches()
+            if not matches:
+                return "⚠️ Chưa có trận đấu nào gần đây được ghi nhận."
+
+            latest = matches[0]
+            hero_name = self.get_hero_short_name(latest.get("hero_id", 0))
+            is_radiant = latest.get("player_slot", 0) < 128
+            won = (latest.get("radiant_win") and is_radiant) or (not latest.get("radiant_win") and not is_radiant)
+            res_str = "Thắng ✅" if won else "Thua ❌"
+            kda = f"{latest.get('kills', 0)}/{latest.get('deaths', 0)}/{latest.get('assists', 0)}"
+
+            dur_sec = latest.get("duration", 0)
+            dur_str = f" ({dur_sec // 60}p)" if dur_sec else ""
+
+            # Role / Vị trí
+            role_part = ""
+            if latest.get("role"):
+                r = latest.get("role").lower()
+                if "pos 1" in r:
+                    role_str = "Pos 1 Carry"
+                elif "pos 2" in r:
+                    role_str = "Pos 2 Mid"
+                elif "pos 3" in r:
+                    role_str = "Pos 3 Off"
+                elif "pos 4" in r:
+                    role_str = "Pos 4"
+                elif "pos 5" in r:
+                    role_str = "Pos 5"
+                else:
+                    role_str = latest.get("role")
+                role_part = f" ({role_str})"
+
+            # Avg MMR
+            mmr_part = ""
+            if latest.get("mmr"):
+                mmr_val = float(latest["mmr"]) / 1000.0
+                mmr_part = f" [Avg MMR {mmr_val:.1f}k]"
+
+            # PMP (Player Match Performance) giải thích rõ ràng cho khán giả
+            pmp_part = ""
+            if latest.get("pmp") is not None:
+                pmp_val = float(latest["pmp"])
+                if pmp_val >= 15.0:
+                    desc = "Gánh team 🔥"
+                elif pmp_val >= 0.0:
+                    desc = "Tròn vai 👍"
+                elif pmp_val >= -10.0:
+                    desc = "Khó thở ⚠️"
+                else:
+                    desc = "Dưới phong độ 📉"
+                sign = "+" if pmp_val > 0 else ""
+                pmp_part = f" | Phong độ: {sign}{pmp_val:.1f} (D2PT chấm: {desc})"
+
+            farm_items = []
+            if latest.get("net_worth"):
+                nw_k = float(latest["net_worth"]) / 1000.0
+                gpm_str = f" ({latest['gold_per_min']} GPM)" if latest.get("gold_per_min") else ""
+                farm_items.append(f"Net: {nw_k:.1f}k{gpm_str}")
+            if latest.get("last_hits") is not None:
+                farm_items.append(f"{latest['last_hits']} CS")
+
+            farm_part = (" | " + ", ".join(farm_items)) if farm_items else ""
+
+            items_part = ""
+            if latest.get("item_timeline"):
+                items_part = " | Đồ: " + ", ".join(latest["item_timeline"])
+
+            msg = f"📖 Trận vừa xong: {hero_name}{role_part} {res_str}{dur_str}{mmr_part} | KDA: {kda}{pmp_part}{farm_part}{items_part}"
+
+            # YouTube chat giới hạn 200 ký tự. Đảm bảo <= 195 ký tự:
+            if len(msg) > 195:
+                # Bỏ bớt farm_part để ưu tiên KDA + PMP + Items
+                msg_compact = f"📖 Trận vừa xong: {hero_name}{role_part} {res_str}{dur_str}{mmr_part} | KDA: {kda}{pmp_part}{items_part}"
+                if len(msg_compact) <= 195:
+                    return msg_compact
+                if latest.get("item_timeline"):
+                    short_items = " | Đồ: " + ", ".join(latest["item_timeline"][:2])
+                    msg_compact = f"📖 Trận vừa xong: {hero_name}{role_part} {res_str}{dur_str}{mmr_part} | KDA: {kda}{pmp_part}{short_items}"
+                    if len(msg_compact) <= 195:
+                        return msg_compact
+                return msg[:192] + "..."
+
+            return msg
+        except Exception as e:
+            logger.error(f"Lỗi trong get_last_message: {e}", exc_info=True)
+            return "⚠️ Máy chủ đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     @staticmethod
     def _is_win(match: Dict[str, Any]) -> bool:
