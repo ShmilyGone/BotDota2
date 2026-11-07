@@ -218,20 +218,33 @@ class YouTubeLiveChatBot:
             "!commands": "!help",
             "!chuoi": "!streak",
             "!5tran": "!recent",
+            "!10tran": "!recent",
             "!besthero": "!heroes",
             "!totals": "!career",
+            "!sunghiep": "!career",
+            "!su-nghiep": "!career",
             "!ditat": "!funfact",
+            "!fact": "!funfact",
             "!collapse": "!connapse",
+            "!dongdoi": "!mate",
+            "!ban": "!mate",
+            "!dangdanh": "!live",
         }.get(cmd_raw, cmd_raw)
 
         rate_key = cmd_key
 
         if now - self.last_global_reply_time < self.global_cooldown:
+            wait_left = self.global_cooldown - (now - self.last_global_reply_time)
+            logger.info(
+                f"Bot vừa gửi tin nhắn khác cách đây {(now - self.last_global_reply_time):.1f}s "
+                f"(global cooldown {self.global_cooldown:.0f}s, còn {wait_left:.1f}s). Bỏ qua để tránh spam."
+            )
             return None
 
         if rate_key in self.last_command_time:
             if now - self.last_command_time[rate_key] < self.command_cooldown:
-                logger.info(f"Lệnh '{rate_key}' đang trong thời gian chờ (cooldown). Bỏ qua.")
+                wait_left = self.command_cooldown - (now - self.last_command_time[rate_key])
+                logger.info(f"Lệnh '{rate_key}' đang trong thời gian chờ (còn {wait_left:.1f}s cooldown). Bỏ qua.")
                 return None
 
         reply = None
@@ -256,8 +269,13 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_funfact_message()
         elif cmd_key in ["!connapse"]:
             reply = self.dota.get_connapse_message()
+        elif cmd_key in ["!pro"]:
+            reply = self.dota.get_pro_message(arg)
         elif cmd_key in ["!help"]:
-            reply = "📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live, !career, !funfact, !connapse."
+            reply = "📜 Lệnh có sẵn: !today, !rank, !streak, !recent, !heroes, !mate, !live, !career, !funfact, !connapse, !pro."
+        else:
+            logger.info(f"Lệnh không hỗ trợ: '{cmd_raw}'. Bỏ qua.")
+            return None
 
         if reply:
             # Chống trùng lặp: nếu câu trả lời giống hệt lần đã gửi gần đây
