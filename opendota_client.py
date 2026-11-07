@@ -1079,8 +1079,8 @@ class OpenDotaClient:
                 return f"{n:,}".replace(",", ".")
 
             couriers = int(totals.get("courier_kills", {}).get("sum", 0))
-            tot_matches = int(totals.get("kills", {}).get("n", 1))
-            matches_per_courier = round(tot_matches / max(1, couriers), 1)
+            courier_matches = int(totals.get("courier_kills", {}).get("n", totals.get("kills", {}).get("n", 1)))
+            matches_per_courier = round(courier_matches / max(1, couriers), 1)
 
             apm = totals.get("actions_per_min", {}).get("sum", 0) / max(1, totals.get("actions_per_min", {}).get("n", 1))
             pings_sum = int(totals.get("pings", {}).get("sum", 0))
@@ -1098,6 +1098,7 @@ class OpenDotaClient:
             total_creeps = last_hits + neutrals
             hero_dmg = totals.get("hero_damage", {}).get("sum", 0)
             dmg_mil = int(hero_dmg // 1000000)
+            rosh_count = max(1, int(hero_dmg // 7500))
 
             stuns_sec = int(totals.get("stuns", {}).get("sum", 0))
             stuns_hours = round(stuns_sec / 3600.0, 1)
@@ -1110,6 +1111,7 @@ class OpenDotaClient:
                 tower_desc = f"chỉ còn {10000 - towers} trụ nữa là cán mốc 10.000 công trình!"
 
             tps = int(totals.get("purchase_tpscroll", {}).get("sum", 0))
+            tp_gold_mil = round((tps * 100) / 1000000, 1)
             denies = int(totals.get("denies", {}).get("sum", 0))
 
             obs = int(totals.get("purchase_ward_observer", {}).get("sum", 0))
@@ -1128,11 +1130,11 @@ class OpenDotaClient:
                 f"🎭 Fun fact: ⚡ {name} có tốc độ tay ~{apm:.0f} APM! Đã ping map {_fmt(pings_sum)} lần ({pings_avg:.0f} ping/trận) — mòn cả màng nhĩ đồng đội.",
                 f"🎭 Fun fact: 🗡️ {name} đã {rapiers} lần all-in mua Thánh Kiếm Rapier và {gems} lần vác Gem soi tàng hình! Tinh thần không ngại rớt kiếm.",
                 f"🎭 Fun fact: 💀 {name} đã {_fmt(deaths)} lần lên bảng đếm số! Ước tính mất ~{_fmt(respawn_hours)} giờ ({respawn_days} ngày đêm) chỉ để ngắm màn hình đen trắng.",
-                f"🎭 Fun fact: 💥 {name} đã farm {_fmt(total_creeps)} lính và quái rừng! Gây {dmg_mil} Triệu sát thương lên hero — bằng máu của 150.000 con Roshan.",
+                f"🎭 Fun fact: 💥 {name} đã farm {_fmt(total_creeps)} lính và quái rừng! Gây {dmg_mil} Triệu sát thương hero — đủ tiễn {_fmt(rosh_count)} con Roshan lên bảng!",
                 f"🎭 Fun fact: ⏳ {name} đã stun đối thủ tổng cộng {_fmt(stuns_sec)} giây (~{stuns_hours} giờ)! Bắt đối phương đứng im bất động suốt {stuns_days} ngày liên tục.",
                 f"🎭 Fun fact: 🏛️ {name} đích thị là máy xúc khi san phẳng {_fmt(towers)} trụ đối phương — {tower_desc}",
-                f"🎭 Fun fact: 📜 {name} đã mua {_fmt(tps)} cuộn giấy TP Scroll (~3 triệu vàng tiền xe ôm) và tự tay chối bỏ (deny) {_fmt(denies)} lính đồng minh.",
-                f"🎭 Fun fact: 👁️ {name} đã cắm {_fmt(total_wards)} cắm mắt ({_fmt(obs)} mắt xanh, {_fmt(sent)} mắt tím) — cắm đủ thắp sáng rực cả bản đồ!",
+                f"🎭 Fun fact: 📜 {name} đã mua {_fmt(tps)} cuộn giấy TP Scroll (~{tp_gold_mil:.1f} triệu vàng tiền xe ôm) và tự tay chối bỏ (deny) {_fmt(denies)} lính đồng minh.",
+                f"🎭 Fun fact: 👁️ {name} đã cắm tổng cộng {_fmt(total_wards)} cây mắt ({_fmt(obs)} mắt xanh, {_fmt(sent)} mắt tím) — đủ thắp sáng rực cả bản đồ!",
                 f"🎭 Fun fact: ⏱️ {name} cống hiến {_fmt(hours)} giờ ({days} ngày đêm) cho Dota 2! Bỏ túi {_fmt(kills)} Kills, {_fmt(assists)} Assists với KDA trung bình {kda_avg:.2f}."
             ]
 
@@ -1218,8 +1220,8 @@ class OpenDotaClient:
                 f"🤝 Tri kỷ connapse: {with_games} trận kề vai sát cánh ({hours}h{minutes:02d}p), 100% CÙNG PHE chưa từng đối đầu! Kết quả: {with_win}W - {with_games - with_win}L ({wr:.1f}%).",
                 f"🌸 connapse - Em gái quốc dân: Chuyên pick Support bảo kê ({top_h_str}) để streamer tha hồ múa lửa gánh team!",
                 f"🔥 Cặp đôi huỷ diệt: Trong {with_games} trận duo với connapse, streamer bỏ túi {streamer_kills} Kills & {streamer_assists} Assists (trung bình {kp_avg:.1f} mạng đóng góp/trận)!",
-                f"⏱️ Kỷ lục duo cùng connapse: Trận lầy lội nhất kéo dài {max_dur} phút căng thẳng, còn trận nhanh nhất ép đối thủ gõ GG chỉ sau đúng {min_dur} phút!",
-                f"🍻 Tình đồng chí keo sơn: Cùng cày {hours}h{minutes:02d}p Dota 2, trận gần nhất vừa quẩy ngày {latest_date}! Dù winrate {wr:.1f}% nhưng tình anh em không bao giờ rạn nứt."
+                f"⏱️ Kỷ lục duo cùng connapse: Trận lầy lội nhất kéo dài {max_dur} phút kịch chiến, còn trận ngắn nhất kết thúc chóng vánh chỉ sau đúng {min_dur} phút!",
+                f"🍻 Tình đồng chí keo sơn: Cùng cày {hours}h{minutes:02d}p Dota 2, trận gần nhất vừa quẩy ngày {latest_date}! Dù winrate {wr:.1f}% nhưng tình cảm đồng đội không bao giờ rạn nứt."
             ]
 
             available = [i for i in range(len(facts)) if i != self._last_connapse_idx]
