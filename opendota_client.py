@@ -224,6 +224,9 @@ class OpenDotaClient:
         self._connapse_cache_time = 0.0
         self.cache_ttl_connapse = 86400.0  # 24 hours
         self._last_connapse_idx: int = -1
+        self._custom_pro_cache: Dict[int, Dict[str, Any]] = {}
+        self._custom_pro_cache_time: Dict[int, float] = {}
+        self.cache_ttl_custom_pro = 86400.0  # 24 hours
         
         self._last_refresh_time = 0.0
 
@@ -1027,6 +1030,57 @@ class OpenDotaClient:
 
         return self._pros_cache or []
 
+    def get_custom_pro_stats(self, other_account_id: int) -> Optional[Dict[str, int]]:
+        """Calculate match stats against a specific player not listed in OpenDota /pros."""
+        now = time.time()
+        if (
+            other_account_id in self._custom_pro_cache
+            and (now - self._custom_pro_cache_time.get(other_account_id, 0) < self.cache_ttl_custom_pro)
+        ):
+            return self._custom_pro_cache[other_account_id]
+
+        try:
+            matches = self._api_get(f"players/{self.account_id}/matches", params={"included_account_id": str(other_account_id)})
+            if not isinstance(matches, list) or not matches:
+                return None
+
+            with_cnt = with_win = against_cnt = against_win = 0
+            for m in matches:
+                my_slot = m.get("player_slot", 0)
+                my_rad = my_slot < 128
+                rad_win = m.get("radiant_win", False)
+                my_win = (rad_win and my_rad) or (not rad_win and not my_rad)
+                heroes = m.get("heroes") or {}
+                other_slot = None
+                for s_str, p in heroes.items():
+                    if str(p.get("account_id")) == str(other_account_id):
+                        other_slot = int(s_str)
+                        break
+                if other_slot is not None:
+                    other_rad = other_slot < 128
+                    if my_rad == other_rad:
+                        with_cnt += 1
+                        if my_win:
+                            with_win += 1
+                    else:
+                        against_cnt += 1
+                        if my_win:
+                            against_win += 1
+
+            stats = {
+                "games": with_cnt + against_cnt,
+                "with_games": with_cnt,
+                "with_win": with_win,
+                "against_games": against_cnt,
+                "against_win": against_win,
+            }
+            self._custom_pro_cache[other_account_id] = stats
+            self._custom_pro_cache_time[other_account_id] = now
+            return stats
+        except Exception as e:
+            logger.warning(f"Lỗi khi tính thống kê custom pro cho {other_account_id}: {e}")
+            return self._custom_pro_cache.get(other_account_id)
+
     def get_career_message(self) -> str:
         """Generate response for !career / !totals: thống kê toàn bộ sự nghiệp."""
         try:
@@ -1239,29 +1293,186 @@ class OpenDotaClient:
             if not pros:
                 return "⚠️ Hiện chưa tải được danh sách Pro Player từ OpenDota, vui lòng thử lại sau!"
 
+            def _clean(s: str) -> str:
+                return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+            # Bảng tên hiển thị đẹp cho các pro có tên ký tự chữ Hán hoặc biệt danh đặc biệt
+            custom_display_names = {
+                158847773: "Tianming (天命)",
+                137193239: "Paparazi (Eurus / 无限)",
+                183378746: "Fantasy (Siamese.C / 皮球)",
+                903184860: "Xiangyu (项羽)",
+                118134220: "Bach (Faith_bian)",
+                111114687: "y` (Innocence)",
+                207829314: "BoBoKa (Borax)",
+                324045303: "Chu Sheng (出省)",
+                446737104: "Dong (冬 / Winter)",
+                156662698: "Ava (阿发)",
+                137515340: "Roujiamo (肉夹馍)",
+                411596849: "Yu Wang (鱼王)",
+                110142194: "Wu Ming (无名)",
+                435460860: "Gen (根)",
+                118842533: "Zhi Fei (知非)",
+                212011074: "Zhang Zezhong (谢乐)",
+                139223191: "Happy Noodles (快乐面条)",
+                1511688542: "Meng Xin (萌新)",
+                1095157609: "Nuan Xin (暖心)",
+                86785208: "Super (Yakult)",
+            }
+
             if not query or not query.strip():
                 top_pros = sorted(pros, key=lambda x: x.get("games", 0), reverse=True)[:4]
-                items = [f"{p.get('name')} ({p.get('games')} trận)" for p in top_pros if p.get("name")]
+                items = [f"{custom_display_names.get(p.get('account_id'), p.get('name'))} ({p.get('games')} trận)" for p in top_pros if p.get("name")]
                 return (
-                    f"🏆 Top Pro hay gặp: {', '.join(items)}... "
-                    "Gõ '!pro <tên>' (vd: !pro 23savage, !pro topson, !pro skem) để xem tỉ lệ đối đầu!"
+                    f"🏆 Top Pro hay gặp: hunghung (742 trận), {', '.join(items)}... "
+                    "Gõ '!pro <tên>' (vd: !pro hunghung, !pro 23savage, !pro paparazi, !pro tianming) để xem tỉ lệ đối đầu!"
                 )
 
             q_raw = query.strip().lower()
-            # Map alias sang account_id cụ thể hoặc tên pro
+            q_clean = _clean(q_raw)
+
+            # 1. Nhóm Pro đặc biệt không còn trong OpenDota /pros (bị ban / giải nghệ / cựu huyền thoại)
+            CUSTOM_EXTRA_PROS = {
+                # hunghung / bmk / htz (Banned by Valve in March 2022)
+                "hunghung": (372105535, "hunghung (Htz / bmk)", "Ex-Apex"),
+                "hung": (372105535, "hunghung (Htz / bmk)", "Ex-Apex"),
+                "bmk": (372105535, "hunghung (Htz / bmk)", "Ex-Apex"),
+                "htz": (372105535, "hunghung (Htz / bmk)", "Ex-Apex"),
+                # Sccc
+                "sccc": (149486894, "Sccc (S-God)", "Newbee"),
+                "sgod": (149486894, "Sccc (S-God)", "Newbee"),
+                # Somnus / Maybe
+                "somnus": (106863163, "Somnus (Maybe)", "AR"),
+                "maybe": (106863163, "Somnus (Maybe)", "AR"),
+                # Chalice
+                "chalice": (94738847, "Chalice", "AR"),
+                # Ame
+                "ame": (125581247, "Ame", "XG"),
+            }
+
+            if q_clean in CUSTOM_EXTRA_PROS:
+                aid, display_name, team_tag = CUSTOM_EXTRA_PROS[q_clean]
+                stats = self.get_custom_pro_stats(aid)
+                if stats and stats.get("games", 0) > 0:
+                    tot_g = stats["games"]
+                    w_g = stats["with_games"]
+                    w_w = stats["with_win"]
+                    w_wr = (w_w / w_g * 100.0) if w_g else 0.0
+                    a_g = stats["against_games"]
+                    a_w = stats["against_win"]
+                    a_wr = (a_w / a_g * 100.0) if a_g else 0.0
+                    tag_str = f" ({team_tag})" if team_tag else ""
+                    return (
+                        f"⚔️ Streamer vs {display_name}{tag_str} (tổng {tot_g} trận): "
+                        f"Chung team {w_g} trận ({w_w}W-{w_g - w_w}L, {w_wr:.1f}%) | "
+                        f"Đối đầu {a_g} trận ({a_w}W-{a_g - a_w}L, {a_wr:.1f}%)"
+                    )
+
+            # 2. Ánh xạ alias trực tiếp sang account_id cho các Pro Trung Quốc / có ký tự chữ Hán / ký tự lạ
             PRO_ACCOUNT_MAP = {
+                # Paparazi / Eurus
                 "paparazi": 137193239,
+                "paparazzi": 137193239,
                 "eurus": 137193239,
                 "paparazi灬": 137193239,
+                "无限": 137193239,
+                # Tianming
+                "tianming": 158847773,
+                "tian ming": 158847773,
+                "thienmenh": 158847773,
+                "thien menh": 158847773,
+                "thiên mệnh": 158847773,
+                "天命": 158847773,
+                # Fantasy / Siamese.C / Piqiu
+                "piqiu": 183378746,
+                "pi qiu": 183378746,
+                "fantasy": 183378746,
+                "siamese.c": 183378746,
+                "siamesec": 183378746,
+                "皮球": 183378746,
+                # Xiangyu
+                "xiangyu": 903184860,
+                "xiang yu": 903184860,
+                "hangvu": 903184860,
+                "hang vu": 903184860,
+                "hạng vũ": 903184860,
+                "项羽": 903184860,
+                # Bach / Faith_bian
+                "bach": 118134220,
+                "faith_bian": 118134220,
+                "faithbian": 118134220,
+                "faith bian": 118134220,
+                # y` / Innocence
+                "y`": 111114687,
+                "y'": 111114687,
+                "innocence": 111114687,
+                "ygod": 111114687,
+                "y-god": 111114687,
+                # BoBoKa / Borax
+                "boboka": 207829314,
+                "borax": 207829314,
+                # Chu Sheng
+                "chusheng": 324045303,
+                "chu sheng": 324045303,
+                "xuattinh": 324045303,
+                "xuất tỉnh": 324045303,
+                "出省": 324045303,
+                # Dong / Winter
+                "dong": 446737104,
+                "winter": 446737104,
+                "gedongdong": 446737104,
+                "冬": 446737104,
+                # Ava / Afa
+                "ava": 156662698,
+                "afa": 156662698,
+                "avaafa": 156662698,
+                "阿发": 156662698,
+                # Roujiamo
+                "roujiamo": 137515340,
+                "thitkep": 137515340,
+                "thịt kẹp": 137515340,
+                "肉夹馍": 137515340,
+                # Yu Wang
+                "yuwang": 411596849,
+                "yu wang": 411596849,
+                "kingoffish": 411596849,
+                "nguvuong": 411596849,
+                "ngư vương": 411596849,
+                "鱼王": 411596849,
+                # Wu Ming
+                "wuming": 110142194,
+                "wu ming": 110142194,
+                "vodanh": 110142194,
+                "vô danh": 110142194,
+                "无名": 110142194,
+                # Gen
+                "gen": 435460860,
+                "根": 435460860,
+                # Zhi Fei
+                "zhifei": 118842533,
+                "zhi fei": 118842533,
+                "知非": 118842533,
+                # Zhang Zezhong / Xie Le
+                "xiele": 212011074,
+                "xie le": 212011074,
+                "zhangzezhong": 212011074,
+                "谢乐": 212011074,
+                # Happy Noodles
+                "happynoodles": 139223191,
+                "kuailemientiao": 139223191,
+                "mivuive": 139223191,
+                "mì vui vẻ": 139223191,
+                "快乐面条": 139223191,
+                # Meng Xin
+                "mengxin": 1511688542,
+                "meng xin": 1511688542,
+                "萌新": 1511688542,
+                # Nuan Xin
+                "nuanxin": 1095157609,
+                "nuan xin": 1095157609,
+                "暖心": 1095157609,
             }
-            PRO_ALIASES = {
-                "crit": "cr1t",
-                "malrine": "malr1ne",
-                "marl1ne": "malr1ne",
-                "23": "23savage",
-                "nts": "nothingtosay",
-                "ana": "ananas$s",
-            }
+
             matched = None
             if q_raw in PRO_ACCOUNT_MAP:
                 target_acc_id = PRO_ACCOUNT_MAP[q_raw]
@@ -1270,49 +1481,58 @@ class OpenDotaClient:
                         matched = p
                         break
 
+            if not matched and q_clean in PRO_ACCOUNT_MAP:
+                target_acc_id = PRO_ACCOUNT_MAP[q_clean]
+                for p in pros:
+                    if p.get("account_id") == target_acc_id:
+                        matched = p
+                        break
+
+            # 3. Biệt danh (aliases) chuẩn sang tên pro player
+            PRO_ALIASES = {
+                "crit": "cr1t",
+                "malrine": "malr1ne",
+                "marl1ne": "malr1ne",
+                "23": "23savage",
+                "nts": "nothingtosay",
+                "ana": "ananas$s",
+                "super": "yakult",
+            }
+
             if not matched:
-                q_target = PRO_ALIASES.get(q_raw, q_raw)
+                q_target = PRO_ALIASES.get(q_clean, q_clean)
 
-                def _clean(s: str) -> str:
-                    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
-
-                q_clean = _clean(q_target)
-
-                if q_clean:
+                if q_target:
                     # 1. Khớp chính xác tên chuẩn
                     for p in pros:
-                        if _clean(p.get("name")) == q_clean:
+                        if _clean(p.get("name")) == q_target:
                             matched = p
                             break
 
                     # 2. Khớp bắt đầu bằng (prefix)
                     if not matched:
                         for p in pros:
-                            if _clean(p.get("name")).startswith(q_clean):
+                            if _clean(p.get("name")).startswith(q_target):
                                 matched = p
                                 break
 
                     # 3. Khớp chuỗi con trong tên
                     if not matched:
                         for p in pros:
-                            if q_clean in _clean(p.get("name")):
+                            if q_target in _clean(p.get("name")):
                                 matched = p
                                 break
 
                     # 4. Khớp trong Steam personaname
                     if not matched:
                         for p in pros:
-                            if q_clean in _clean(p.get("personaname")):
+                            if q_target in _clean(p.get("personaname")):
                                 matched = p
                                 break
 
             if not matched:
                 return f"⚠️ Streamer chưa từng thi đấu cùng hoặc đối đầu với pro player nào có tên khớp '{query.strip()}'."
 
-            # Nếu pro dùng ký tự lạ hoặc tên tiếng Trung trên Steam, hiển thị kèm nickname nổi tiếng
-            custom_display_names = {
-                137193239: "Paparazi (Eurus / 无限)"
-            }
             p_name = custom_display_names.get(matched.get("account_id")) or matched.get("name") or matched.get("personaname")
             tag = f" ({matched['team_tag']})" if matched.get("team_tag") else ""
             tot_g = matched.get("games", 0)
