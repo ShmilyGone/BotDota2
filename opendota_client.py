@@ -1104,6 +1104,10 @@ class OpenDotaClient:
             stuns_days = round(stuns_hours / 24.0, 1)
 
             towers = int(totals.get("tower_kills", {}).get("sum", 0))
+            if towers >= 10000:
+                tower_desc = "chính thức vượt mốc kỷ lục 10.000 công trình khiến thợ xây thất nghiệp!"
+            else:
+                tower_desc = f"chỉ còn {10000 - towers} trụ nữa là cán mốc 10.000 công trình!"
 
             tps = int(totals.get("purchase_tpscroll", {}).get("sum", 0))
             denies = int(totals.get("denies", {}).get("sum", 0))
@@ -1126,7 +1130,7 @@ class OpenDotaClient:
                 f"🎭 Fun fact: 💀 {name} đã {_fmt(deaths)} lần lên bảng đếm số! Ước tính mất ~{_fmt(respawn_hours)} giờ ({respawn_days} ngày đêm) chỉ để ngắm màn hình đen trắng.",
                 f"🎭 Fun fact: 💥 {name} đã farm {_fmt(total_creeps)} lính và quái rừng! Gây {dmg_mil} Triệu sát thương lên hero — bằng máu của 150.000 con Roshan.",
                 f"🎭 Fun fact: ⏳ {name} đã stun đối thủ tổng cộng {_fmt(stuns_sec)} giây (~{stuns_hours} giờ)! Bắt đối phương đứng im bất động suốt {stuns_days} ngày liên tục.",
-                f"🎭 Fun fact: 🏛️ {name} đã đập nát {_fmt(towers)} trụ của đối phương! Chỉ còn đúng {10000 - towers} trụ nữa là cán mốc kỷ lục 10.000 công trình.",
+                f"🎭 Fun fact: 🏛️ {name} đích thị là máy xúc khi san phẳng {_fmt(towers)} trụ đối phương — {tower_desc}",
                 f"🎭 Fun fact: 📜 {name} đã mua {_fmt(tps)} cuộn giấy TP Scroll (~3 triệu vàng tiền xe ôm) và tự tay chối bỏ (deny) {_fmt(denies)} lính đồng minh.",
                 f"🎭 Fun fact: 👁️ {name} đã cắm {_fmt(total_wards)} cắm mắt ({_fmt(obs)} mắt xanh, {_fmt(sent)} mắt tím) — cắm đủ thắp sáng rực cả bản đồ!",
                 f"🎭 Fun fact: ⏱️ {name} cống hiến {_fmt(hours)} giờ ({days} ngày đêm) cho Dota 2! Bỏ túi {_fmt(kills)} Kills, {_fmt(assists)} Assists với KDA trung bình {kda_avg:.2f}."
