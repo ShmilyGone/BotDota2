@@ -14,6 +14,11 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 import logging
 
+try:
+    from curl_cffi import requests as cffi_requests
+except ImportError:
+    cffi_requests = None
+
 logger = logging.getLogger("OpenDotaClient")
 
 TIER_NAMES = {
@@ -389,10 +394,13 @@ class OpenDotaClient:
         """Fetch matches from Dota2ProTracker for pro/high MMR players in near real-time."""
         try:
             url = f"https://dota2protracker.com/player/{self.account_id}"
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            }
-            resp = self.session.get(url, headers=headers, timeout=6)
+            if cffi_requests:
+                resp = cffi_requests.get(url, impersonate="chrome120", timeout=6)
+            else:
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                }
+                resp = self.session.get(url, headers=headers, timeout=6)
             if resp.status_code != 200:
                 return []
             
@@ -637,7 +645,9 @@ class OpenDotaClient:
                 session_matches.append(m)
             else:
                 prev_m = session_matches[-1]
-                gap_hours = (prev_m.get("start_time", 0) - m.get("start_time", 0)) / 3600.0
+                prev_ts = self._start_time_epoch(prev_m) or 0
+                curr_ts = self._start_time_epoch(m) or 0
+                gap_hours = (prev_ts - curr_ts) / 3600.0
                 if gap_hours <= self.session_gap_hours:
                     session_matches.append(m)
                 else:
