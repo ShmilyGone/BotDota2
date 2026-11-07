@@ -879,7 +879,9 @@ class OpenDotaClient:
             pmp_part = ""
             if latest.get("pmp") is not None:
                 pmp_val = float(latest["pmp"])
-                if pmp_val >= 20.0:
+                if pmp_val >= 25.0:
+                    desc = "Hóa thần 👑"
+                elif pmp_val >= 20.0:
                     desc = "Gánh còng lưng 🔥"
                 elif pmp_val >= 15.0:
                     desc = "Gánh team 🚀"
@@ -897,8 +899,10 @@ class OpenDotaClient:
                     desc = "Thọt nặng 📉"
                 elif pmp_val >= -20.0:
                     desc = "Dưới phong độ 🥀"
-                else:
+                elif pmp_val >= -25.0:
                     desc = "Thảm họa 💀"
+                else:
+                    desc = "Tạ nguyên khối 🗿"
                 sign = "+" if pmp_val > 0 else ""
                 pmp_part = f" | Phong độ: {sign}{pmp_val:.1f} (D2PT chấm: {desc})"
 
