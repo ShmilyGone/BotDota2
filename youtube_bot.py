@@ -259,7 +259,7 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_today_message()
         elif cmd_key in ["!rank"]:
             reply = self.dota.get_rank_message()
-        elif cmd_key in ["!streak", "!recent", "!heroes", "!mate", "!covy", "!pro", "!pros"]:
+        elif cmd_key in ["!streak", "!recent", "!heroes", "!mate", "!covy", "!connapse", "!pro", "!pros"]:
             logger.info(f"Lệnh '{cmd_key}' đang tạm thời bị khóa. Bỏ qua.")
             return None
         elif cmd_key in ["!live"]:
@@ -268,8 +268,6 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_career_message()
         elif cmd_key in ["!funfact"]:
             reply = self.dota.get_funfact_message()
-        elif cmd_key in ["!connapse"]:
-            reply = self.dota.get_connapse_message()
         elif cmd_key in ["!quota"]:
             reply = self.account_pool.get_quota_chat_message()
         elif cmd_key in ["!2rax", "!tnc", "!2raxtnc"]:
@@ -280,7 +278,7 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_last_message()
         elif cmd_key in ["!help"]:
             reply = (
-                "📜 Lệnh: !today, !last, !rank, !live, !quota, !career, !funfact, !connapse. "
+                "📜 Lệnh: !today, !last, !rank, !live, !quota, !career, !funfact. "
                 "⏱️ Chờ 10s giữa các lệnh, 1 phút nếu lặp lại cùng một lệnh. "
                 "Nếu bot chưa kịp trả lời, bạn hãy thử gõ lại nhé!"
             )
