@@ -2,7 +2,11 @@ import os
 import glob
 import json
 import logging
-from typing import List, Optional, Set, Dict
+import re
+import shutil
+import subprocess
+from datetime import datetime, timezone, timedelta
+from typing import List, Optional, Set, Dict, Any
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -11,6 +15,90 @@ from googleapiclient.errors import HttpError
 
 SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
 logger = logging.getLogger("AccountPool")
+
+class QuotaTracker:
+    """
+    Theo dõi và ước tính số lượng tin nhắn và quota tiêu tốn theo chu kỳ ngày của Google YouTube API.
+    Google reset quota vào lúc 00:00 Pacific Time (15:00 GMT+7, tương đương 08:00 UTC).
+    """
+    def __init__(self, filepath: str = "quota_tracker.json"):
+        self.filepath = filepath
+
+    @staticmethod
+    def get_cycle_key() -> str:
+        """Lấy chu kỳ ngày hiện tại theo giờ Pacific (UTC-8)."""
+        now_utc = datetime.now(timezone.utc)
+        pt_date = (now_utc - timedelta(hours=8)).strftime("%Y-%m-%d")
+        return pt_date
+
+    def load_data(self) -> Dict[str, Any]:
+        cycle = self.get_cycle_key()
+        if os.path.exists(self.filepath):
+            try:
+                with open(self.filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if data.get("cycle") == cycle:
+                        return data
+            except Exception:
+                pass
+        return {"cycle": cycle, "counts": {}}
+
+    def save_data(self, data: Dict[str, Any]):
+        try:
+            with open(self.filepath, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.warning(f"Không thể lưu {self.filepath}: {e}")
+
+    def record_send(self, project_id: str):
+        data = self.load_data()
+        counts = data.setdefault("counts", {})
+        counts[project_id] = counts.get(project_id, 0) + 1
+        self.save_data(data)
+
+    def get_counts(self) -> Dict[str, int]:
+        data = self.load_data()
+        counts = data.get("counts", {})
+        # Tự động đồng bộ từ systemd journalctl nếu đang chạy trên VPS Linux
+        journal_counts = self.sync_from_journal()
+        changed = False
+        for pid, cnt in journal_counts.items():
+            if cnt > counts.get(pid, 0):
+                counts[pid] = cnt
+                changed = True
+        if changed:
+            data["counts"] = counts
+            self.save_data(data)
+        return counts
+
+    def sync_from_journal(self) -> Dict[str, int]:
+        """Đọc số tin nhắn từ journalctl kể từ đầu chu kỳ Quota (08:00 UTC) nếu khả dụng."""
+        if shutil.which("journalctl") is None:
+            return {}
+        try:
+            now_utc = datetime.now(timezone.utc)
+            if now_utc.hour >= 8:
+                start_dt = now_utc.replace(hour=8, minute=0, second=0, microsecond=0)
+            else:
+                yesterday = now_utc - timedelta(days=1)
+                start_dt = yesterday.replace(hour=8, minute=0, second=0, microsecond=0)
+            since_str = start_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+
+            cmd = ["journalctl", "-u", "dota2bot", "--since", since_str, "--no-pager"]
+            proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+            if proc.returncode != 0:
+                return {}
+
+            counts: Dict[str, int] = {}
+            for line in proc.stdout.splitlines():
+                if "Đã trả lời:" in line and "Dự án " in line:
+                    m = re.search(r"Dự án\s+(\d+)", line)
+                    if m:
+                        pid = m.group(1)
+                        counts[pid] = counts.get(pid, 0) + 1
+            return counts
+        except Exception:
+            return {}
 
 class YouTubeAccount:
     def __init__(self, client_secret_path: str, token_path: str, project_id: str):
@@ -82,6 +170,7 @@ class YouTubeAccount:
 class AccountPool:
     def __init__(self, workspace_dir: str = "."):
         self.workspace_dir = workspace_dir
+        self.quota_tracker = QuotaTracker(filepath=os.path.join(self.workspace_dir, "quota_tracker.json"))
         self.accounts: List[YouTubeAccount] = []
         self.current_index = 0
         self.all_bot_channel_ids: Set[str] = set()
@@ -223,6 +312,7 @@ class AccountPool:
                     }
                 ).execute()
                 logger.info(f"🤖 [{acc.channel_title} | Dự án {acc.project_id}] Đã trả lời: {text}")
+                self.quota_tracker.record_send(acc.project_id)
                 return True
             except HttpError as e:
                 if "quotaExceeded" in str(e):
@@ -253,3 +343,88 @@ class AccountPool:
             print(f"     - Token: {os.path.basename(acc.token_path)}")
             print(f"     - Trạng thái: {status}")
         print("=" * 65)
+
+    def get_quota_summary(self) -> Dict[str, Any]:
+        """Tính toán thống kê quota chi tiết cho từng tài khoản và toàn pool."""
+        counts = self.quota_tracker.get_counts()
+        rows = []
+        tot_msgs = 0
+        tot_units = 0
+
+        for acc in self.accounts:
+            msgs = counts.get(acc.project_id, 0)
+            units = msgs * 50
+            pct = min(100.0, (units / 10000.0) * 100.0)
+            status = "Hết Quota ⏳" if (acc.quota_exhausted or units >= 10000) else "Sẵn sàng ✅"
+            rows.append({
+                "project_id": acc.project_id,
+                "title": acc.channel_title if acc.channel_title != "Unknown" else f"Dự án {acc.project_id}",
+                "channel_id": acc.channel_id,
+                "messages": msgs,
+                "units_used": units,
+                "percent": pct,
+                "status": status
+            })
+            tot_msgs += msgs
+            tot_units += units
+
+        num_acc = max(1, len(self.accounts))
+        tot_limit = num_acc * 10000
+        tot_max_msgs = num_acc * 200  # 10000 / 50 = 200 msgs/account
+        tot_pct = min(100.0, (tot_units / tot_limit) * 100.0)
+        rem_msgs = max(0, tot_max_msgs - tot_msgs)
+
+        return {
+            "cycle": self.quota_tracker.get_cycle_key(),
+            "accounts": rows,
+            "total_messages": tot_msgs,
+            "total_max_messages": tot_max_msgs,
+            "total_units": tot_units,
+            "total_limit": tot_limit,
+            "total_percent": tot_pct,
+            "total_remaining_messages": rem_msgs
+        }
+
+    def print_quota_table(self):
+        """In bảng ước lượng Quota YouTube API đẹp mắt trên Terminal."""
+        summary = self.get_quota_summary()
+        cycle = summary["cycle"]
+        print("=" * 86)
+        print(f"📊 BẢNG ƯỚC LƯỢNG QUOTA YOUTUBE DATA API (Chu kỳ: {cycle}):")
+        print("   (Mỗi tin nhắn gửi đi tốn 50 units. Quota reset hàng ngày lúc 15:00 GMT+7)")
+        print("-" * 86)
+        print(f"| {'STT':<3} | {'Tài khoản Bot':<14} | {'Dự án Google Cloud':<20} | {'Tin đã gửi':<10} | {'Quota đã dùng':<16} | {'Trạng thái':<10} |")
+        print("-" * 86)
+        for idx, row in enumerate(summary["accounts"], 1):
+            stt = str(idx)
+            title = row["title"][:14]
+            pid = row["project_id"][:20]
+            msgs = f"{row['messages']} tin"
+            quota_str = f"{row['units_used']:,}/10,000 ({row['percent']:.1f}%)"
+            status = row["status"]
+            print(f"| {stt:<3} | {title:<14} | {pid:<20} | {msgs:<10} | {quota_str:<16} | {status:<10} |")
+        print("-" * 86)
+        tot_m = summary["total_messages"]
+        tot_max = summary["total_max_messages"]
+        tot_u = summary["total_units"]
+        tot_lim = summary["total_limit"]
+        tot_p = summary["total_percent"]
+        rem = summary["total_remaining_messages"]
+        print(f"| Tổng: {tot_m}/{tot_max} tin (~{tot_u:,}/{tot_lim:,} units - {tot_p:.1f}%) | Còn lại: ~{rem} tin nhắn |")
+        print("=" * 86)
+
+    def get_quota_chat_message(self) -> str:
+        """Tạo thông điệp báo cáo quota ngắn gọn (<= 195 ký tự) cho YouTube Live Chat."""
+        summary = self.get_quota_summary()
+        acc_parts = []
+        for a in summary["accounts"]:
+            acc_parts.append(f"{a['title']}: {a['messages']} tin")
+        acc_str = ", ".join(acc_parts)
+        tot = summary["total_messages"]
+        tot_max = summary["total_max_messages"]
+        rem = summary["total_remaining_messages"]
+        pct = summary["total_percent"]
+        msg = f"📊 Quota hôm nay: {acc_str} | Tổng: {tot}/{tot_max} tin ({pct:.1f}%), còn ~{rem} tin nữa!"
+        if len(msg) > 195:
+            msg = f"📊 Quota hôm nay: Đã gửi {tot}/{tot_max} tin ({pct:.1f}%), còn lại ~{rem} tin nhắn!"
+        return msg

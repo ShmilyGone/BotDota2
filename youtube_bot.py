@@ -272,6 +272,8 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_connapse_message()
         elif cmd_key in ["!covy"]:
             reply = self.dota.get_covy_message()
+        elif cmd_key in ["!quota"]:
+            reply = self.account_pool.get_quota_chat_message()
         elif cmd_key in ["!2rax", "!tnc", "!2raxtnc"]:
             reply = self.dota.get_tworax_message()
         elif cmd_key in ["!dieback"]:
@@ -280,7 +282,7 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_last_message()
         elif cmd_key in ["!help"]:
             reply = (
-                "📜 Lệnh: !today, !last, !rank, !live, !covy, !career, !funfact, !connapse. "
+                "📜 Lệnh: !today, !last, !rank, !live, !covy, !quota, !career, !funfact, !connapse. "
                 "⏱️ Chờ 10s giữa các lệnh, 1 phút nếu lặp lại cùng một lệnh. "
                 "Nếu bot chưa kịp trả lời, bạn hãy thử gõ lại nhé!"
             )

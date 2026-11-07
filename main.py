@@ -74,8 +74,12 @@ def run_terminal_test(dota_client: OpenDotaClient):
                 print(dota_client.get_connapse_message())
             elif cmd_name in ["!covy", "!vy", "!hanvy", "!leminhhanvy"]:
                 print(dota_client.get_covy_message())
+            elif cmd_name in ["!quota"]:
+                from account_pool import AccountPool
+                p = AccountPool()
+                print(p.get_quota_chat_message())
             elif cmd_name in ["!help", "!lenh"]:
-                print("📜 Lệnh: !today, !last, !rank, !live, !covy, !career, !funfact, !connapse. ⏱️ Chờ 10s giữa các lệnh, 1 phút nếu lặp lại cùng một lệnh. Nếu bot chưa kịp trả lời, bạn hãy thử gõ lại nhé!")
+                print("📜 Lệnh: !today, !last, !rank, !live, !covy, !quota, !career, !funfact, !connapse. ⏱️ Chờ 10s giữa các lệnh, 1 phút nếu lặp lại cùng một lệnh. Nếu bot chưa kịp trả lời, bạn hãy thử gõ lại nhé!")
             else:
                 print(f"❓ Không nhận diện được lệnh '{cmd}'. Thử: !today, !rank, !career, !funfact, !connapse")
         except (KeyboardInterrupt, EOFError):
@@ -88,6 +92,7 @@ def main():
     parser = argparse.ArgumentParser(description="YouTube Live Chat Bot cho Dota 2 Streamer")
     parser.add_argument("--test-dota", action="store_true", help="Chạy chế độ test lệnh Dota 2 trên Terminal (không cần YouTube)")
     parser.add_argument("--status", action="store_true", help="Kiểm tra trạng thái các tài khoản trong Account Pool")
+    parser.add_argument("--quota", action="store_true", help="Hiển thị bảng ước lượng Quota YouTube API của các bot")
     parser.add_argument("--auth-accounts", action="store_true", help="Xác thực OAuth 2.0 cho các tài khoản mới trong Account Pool")
     parser.add_argument("--account-id", type=str, default=os.getenv("DOTA_ACCOUNT_ID", "196931374"), help="Dota 2 Steam Account ID (mặc định: 196931374)")
     parser.add_argument("--channel", type=str, default=os.getenv("TARGET_CHANNEL", "@DHDota2"), help="Kênh livestream mục tiêu (vd: @DHDota2 hoặc link kênh)")
@@ -103,6 +108,11 @@ def main():
     if args.status:
         pool.authenticate_all(interactive=False)
         pool.print_status()
+        return
+
+    if args.quota:
+        pool.authenticate_all(interactive=False)
+        pool.print_quota_table()
         return
 
     if args.auth_accounts:
