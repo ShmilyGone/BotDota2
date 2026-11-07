@@ -876,16 +876,24 @@ class OpenDotaClient:
                 mmr_val = float(latest["mmr"]) / 1000.0
                 mmr_part = f" [Avg MMR {mmr_val:.1f}k]"
 
-            # PMP (Player Match Performance) giải thích rõ ràng theo thang điểm 5 cho khán giả
+            # PMP (Player Match Performance) giải thích rõ ràng theo thang điểm 5 từ -50 đến +50 cho khán giả
             pmp_part = ""
             if latest.get("pmp") is not None:
                 pmp_val = float(latest["pmp"])
-                if pmp_val >= 25.0:
-                    desc = "Hóa thần 👑"
-                elif pmp_val >= 20.0:
+                if pmp_val >= 45.0:
+                    desc = "Đấng cứu thế 🌟"
+                elif pmp_val >= 40.0:
+                    desc = "Out trình cả map 👑"
+                elif pmp_val >= 35.0:
+                    desc = "1v9 Hóa thần ⚡"
+                elif pmp_val >= 30.0:
+                    desc = "Hủy diệt server 💥"
+                elif pmp_val >= 25.0:
                     desc = "Gánh còng lưng 🔥"
-                elif pmp_val >= 15.0:
+                elif pmp_val >= 20.0:
                     desc = "Gánh team 🚀"
+                elif pmp_val >= 15.0:
+                    desc = "Tay rất to 💪"
                 elif pmp_val >= 10.0:
                     desc = "Rất bay ✨"
                 elif pmp_val >= 5.0:
@@ -897,13 +905,21 @@ class OpenDotaClient:
                 elif pmp_val >= -10.0:
                     desc = "Khó thở ⚠️"
                 elif pmp_val >= -15.0:
-                    desc = "Thọt nặng 📉"
+                    desc = "Chật vật 📉"
                 elif pmp_val >= -20.0:
                     desc = "Dưới phong độ 🥀"
                 elif pmp_val >= -25.0:
+                    desc = "Thọt nặng 🤕"
+                elif pmp_val >= -30.0:
                     desc = "Thảm họa 💀"
-                else:
+                elif pmp_val >= -35.0:
                     desc = "Tạ nguyên khối 🗿"
+                elif pmp_val >= -40.0:
+                    desc = "Tạ vũ trụ 🪐"
+                elif pmp_val >= -45.0:
+                    desc = "Feed không phanh 🚑"
+                else:
+                    desc = "Tạ vô cực 🌀"
                 sign = "+" if pmp_val > 0 else ""
                 pmp_part = f" | Phong độ: {sign}{pmp_val:.1f} (D2PT chấm: {desc})"
 
