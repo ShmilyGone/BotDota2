@@ -1,9 +1,12 @@
+import os
+import json
 import math
 import time
 import re
 import random
+from collections import Counter
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
@@ -227,6 +230,10 @@ class OpenDotaClient:
         self._custom_pro_cache: Dict[int, Dict[str, Any]] = {}
         self._custom_pro_cache_time: Dict[int, float] = {}
         self.cache_ttl_custom_pro = 86400.0  # 24 hours
+        
+        # Cache thống kê Dieback lưu trữ local
+        self.dieback_cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dieback_cache.json")
+        self._dieback_cache: Dict[str, Any] = self._load_dieback_cache()
         
         self._last_refresh_time = 0.0
 
@@ -1682,5 +1689,170 @@ class OpenDotaClient:
         except Exception as e:
             logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+
+    def _load_dieback_cache(self) -> Dict[str, Any]:
+        """Tải dữ liệu cache dieback từ file json local."""
+        if os.path.exists(self.dieback_cache_file):
+            try:
+                with open(self.dieback_cache_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.error(f"Lỗi đọc dieback cache: {e}")
+        return {}
+
+    def _save_dieback_cache(self):
+        """Lưu dữ liệu cache dieback vào file json local."""
+        try:
+            with open(self.dieback_cache_file, "w", encoding="utf-8") as f:
+                json.dump(self._dieback_cache, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"Lỗi lưu dieback cache: {e}")
+
+    def get_match_dieback_info(self, match_id: Union[int, str], m_meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Lấy thông tin dieback cho một trận đấu, ưu tiên từ cache, nếu chưa có thì fetch và lưu cache."""
+        mid = str(match_id)
+        if mid in self._dieback_cache:
+            return self._dieback_cache[mid]
+
+        # Nếu metadata cho thấy trận chưa parse hoặc 0 deaths thì lưu luôn không có dieback
+        if m_meta:
+            if m_meta.get("version") is None or m_meta.get("deaths", 0) == 0:
+                entry = {
+                    "parsed": bool(m_meta.get("version")),
+                    "hero_id": m_meta.get("hero_id"),
+                    "win": self._is_win(m_meta),
+                    "diebacks": []
+                }
+                self._dieback_cache[mid] = entry
+                return entry
+
+        try:
+            mdata = self._api_get(f"/matches/{mid}")
+            if not mdata or "players" not in mdata:
+                entry = {"parsed": False, "diebacks": []}
+                self._dieback_cache[mid] = entry
+                return entry
+
+            p = next((x for x in mdata["players"] if str(x.get("account_id")) == self.account_id), None)
+            if not p:
+                entry = {"parsed": False, "diebacks": []}
+                self._dieback_cache[mid] = entry
+                return entry
+
+            bb_log = p.get("buyback_log") or []
+            deaths_log = p.get("deaths_log") or []
+            diebacks = []
+            for bb in bb_log:
+                b_t = bb.get("time", 0)
+                next_deaths = [d for d in deaths_log if d.get("time", 0) > b_t]
+                if next_deaths:
+                    nd = next_deaths[0]
+                    dt = nd.get("time", 0) - b_t
+                    if dt <= 120:  # Chết lại trong vòng 2 phút sau khi buyback
+                        killer_raw = nd.get("key", "").replace("npc_dota_hero_", "").replace("dota_", "")
+                        diebacks.append({
+                            "bb_time": b_t,
+                            "death_time": nd.get("time", 0),
+                            "sec_after_bb": dt,
+                            "killer": killer_raw
+                        })
+            entry = {
+                "parsed": True,
+                "hero_id": p.get("hero_id"),
+                "win": p.get("win") == 1,
+                "diebacks": diebacks
+            }
+            self._dieback_cache[mid] = entry
+            self._save_dieback_cache()
+            return entry
+        except Exception as e:
+            logger.error(f"Lỗi kiểm tra dieback cho trận {mid}: {e}")
+            return {"parsed": False, "diebacks": []}
+
+    def get_dieback_message(self, query: Optional[str] = None) -> str:
+        """Thống kê dieback của streamer trong ca stream hiện tại hoặc 100 trận gần nhất."""
+        try:
+            q = (query or "").strip().lower()
+
+            def _fmt_killer(k_str: Optional[str]) -> str:
+                if not k_str:
+                    return "Đối thủ"
+                clean = k_str.replace("npc_dota_hero_", "").replace("dota_", "").replace("_", " ").title()
+                return HERO_ABBREVIATIONS.get(clean, clean)
+
+            # 1. Thống kê tổng hợp 100 trận nếu người dùng gõ: !dieback 100, !dieback all, !dieback top
+            if q in ["100", "all", "top", "max"]:
+                all_diebacks = []
+                hero_counts = Counter()
+                fastest = (999, None, None, None)
+                for mid, d in self._dieback_cache.items():
+                    for db in d.get("diebacks", []):
+                        hid = d.get("hero_id")
+                        all_diebacks.append((mid, hid, db, d.get("win")))
+                        if hid:
+                            hero_counts[hid] += 1
+                        sec = db.get("sec_after_bb", 999)
+                        if sec < fastest[0]:
+                            fastest = (sec, hid, db.get("killer"), mid)
+
+                top_str = ""
+                if hero_counts:
+                    top_h = hero_counts.most_common(2)
+                    top_str = f" Hay nướng tiền nhất: {', '.join([f'{self.get_hero_short_name(h)} ({c} lần)' for h, c in top_h])}."
+
+                fastest_str = ""
+                if fastest[1] is not None:
+                    h_name = self.get_hero_short_name(fastest[1])
+                    k_name = _fmt_killer(fastest[2])
+                    fastest_str = f" Kỷ lục ngã ngửa: {h_name} BB xong nằm xuống sau đúng {fastest[0]}s bởi {k_name}!"
+
+                return f"💀 Thống kê 100 trận gần nhất: {len(all_diebacks)} pha Dieback!{top_str}{fastest_str}"
+
+            # 2. Mặc định: Thống kê trong ca stream hôm nay (session)
+            session_matches = self.get_session_matches()
+            if not session_matches:
+                tot_100 = sum(len(d.get("diebacks", [])) for d in self._dieback_cache.values())
+                return f"📅 Ca stream hôm nay chưa có trận nào. Tổng 100 trận gần nhất có {tot_100} pha Dieback! Kỷ lục: Storm Spirit vừa BB xong đếm số sau 6s bởi Huskar."
+
+            session_diebacks = []
+            for m in session_matches:
+                mid = m.get("match_id")
+                info = self.get_match_dieback_info(mid, m_meta=m)
+                for db in info.get("diebacks", []):
+                    session_diebacks.append({
+                        "match_id": mid,
+                        "hero_id": m.get("hero_id"),
+                        "win": self._is_win(m),
+                        "bb_time": db.get("bb_time", 0),
+                        "death_time": db.get("death_time", 0),
+                        "sec": db.get("sec_after_bb", 0),
+                        "killer": db.get("killer", "")
+                    })
+
+            n_matches = len(session_matches)
+            if not session_diebacks:
+                tot_100 = sum(len(d.get("diebacks", [])) for d in self._dieback_cache.values())
+                return (
+                    f"🎉 Ca stream hôm nay ({n_matches} trận): 0 pha Dieback, streamer đánh rất tỉnh táo! "
+                    f"(100 trận gần nhất có {tot_100} pha, kỷ lục: Storm Spirit BB xong hẹo sau đúng 6s bởi Huskar)."
+                )
+
+            # Có dieback trong ca hôm nay
+            db_count = len(session_diebacks)
+            latest = session_diebacks[0]
+            h_name = self.get_hero_short_name(latest["hero_id"])
+            b_min = latest["bb_time"] // 60
+            b_sec = latest["bb_time"] % 60
+            k_name = _fmt_killer(latest["killer"])
+            res = "Thắng" if latest["win"] else "Thua"
+
+            return (
+                f"💀 Ca stream hôm nay ({n_matches} trận): Streamer có {db_count} pha Dieback! "
+                f"Trận {h_name} (BB phút {b_min}:{b_sec:02d} -> bay màu sau {latest['sec']}s bởi {k_name}). Kết quả: {res}."
+            )
+        except Exception as e:
+            logger.error(f"Lỗi trong get_dieback_message: {e}", exc_info=True)
+            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+
 
 

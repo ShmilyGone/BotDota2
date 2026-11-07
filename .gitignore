@@ -4,6 +4,7 @@ __pycache__/
 .env
 *.json
 !requirements.txt
+!dieback_cache.json
 *.zip
 BotDota2-main-no-link*
 

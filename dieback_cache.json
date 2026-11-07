@@ -1,0 +1,748 @@
+{
+  "9079659255": {
+    "parsed": false,
+    "diebacks": []
+  },
+  "9079621205": {
+    "parsed": true,
+    "hero_id": 55,
+    "win": true,
+    "diebacks": []
+  },
+  "9079591532": {
+    "parsed": true,
+    "hero_id": 52,
+    "win": false,
+    "diebacks": []
+  },
+  "9079565107": {
+    "parsed": false,
+    "diebacks": []
+  },
+  "9078760841": {
+    "parsed": false,
+    "diebacks": []
+  },
+  "9078689911": {
+    "parsed": false,
+    "diebacks": []
+  },
+  "9078609821": {
+    "parsed": false,
+    "diebacks": []
+  },
+  "9078558262": {
+    "parsed": false,
+    "diebacks": []
+  },
+  "9078493919": {
+    "parsed": true,
+    "hero_id": 49,
+    "win": true,
+    "diebacks": []
+  },
+  "9078451012": {
+    "parsed": false,
+    "diebacks": []
+  },
+  "9078383701": {
+    "parsed": false,
+    "diebacks": []
+  },
+  "9078338348": {
+    "parsed": true,
+    "hero_id": 17,
+    "win": false,
+    "diebacks": [
+      {
+        "bb_time": 1614,
+        "death_time": 1651,
+        "sec_after_bb": 37,
+        "killer": "tiny"
+      }
+    ]
+  },
+  "9078301405": {
+    "parsed": true,
+    "hero_id": 52,
+    "win": true,
+    "diebacks": []
+  },
+  "9078266137": {
+    "parsed": true,
+    "hero_id": 46,
+    "win": true,
+    "diebacks": []
+  },
+  "9078225522": {
+    "parsed": false,
+    "diebacks": []
+  },
+  "9078185456": {
+    "parsed": true,
+    "hero_id": 52,
+    "win": true,
+    "diebacks": []
+  },
+  "9078162997": {
+    "parsed": true,
+    "hero_id": 28,
+    "win": false,
+    "diebacks": []
+  },
+  "9078136750": {
+    "parsed": true,
+    "diebacks": []
+  },
+  "9078114498": {
+    "parsed": true,
+    "hero_id": 76,
+    "win": false,
+    "diebacks": []
+  },
+  "9078093419": {
+    "parsed": true,
+    "hero_id": 52,
+    "win": true,
+    "diebacks": []
+  },
+  "9077632462": {
+    "parsed": true,
+    "hero_id": 17,
+    "win": true,
+    "diebacks": []
+  },
+  "9077555688": {
+    "parsed": false,
+    "diebacks": []
+  },
+  "9077490224": {
+    "parsed": false,
+    "diebacks": []
+  },
+  "9077420735": {
+    "parsed": true,
+    "hero_id": 93,
+    "win": true,
+    "diebacks": []
+  },
+  "9077356942": {
+    "parsed": true,
+    "hero_id": 35,
+    "win": false,
+    "diebacks": [
+      {
+        "bb_time": 1917,
+        "death_time": 1933,
+        "sec_after_bb": 16,
+        "killer": "windrunner"
+      }
+    ]
+  },
+  "9077285769": {
+    "parsed": true,
+    "hero_id": 52,
+    "win": true,
+    "diebacks": []
+  },
+  "9077198563": {
+    "parsed": true,
+    "hero_id": 93,
+    "win": false,
+    "diebacks": []
+  },
+  "9077092501": {
+    "parsed": true,
+    "hero_id": 35,
+    "win": true,
+    "diebacks": []
+  },
+  "9077058147": {
+    "parsed": true,
+    "hero_id": 76,
+    "win": true,
+    "diebacks": []
+  },
+  "9077029437": {
+    "parsed": true,
+    "hero_id": 106,
+    "win": true,
+    "diebacks": []
+  },
+  "9076995319": {
+    "parsed": true,
+    "hero_id": 2,
+    "win": false,
+    "diebacks": []
+  },
+  "9076966131": {
+    "parsed": true,
+    "hero_id": 35,
+    "win": true,
+    "diebacks": []
+  },
+  "9076925511": {
+    "parsed": true,
+    "hero_id": 46,
+    "win": true,
+    "diebacks": []
+  },
+  "9076228295": {
+    "parsed": true,
+    "hero_id": 93,
+    "win": false,
+    "diebacks": []
+  },
+  "9076148489": {
+    "parsed": true,
+    "hero_id": 2,
+    "win": true,
+    "diebacks": [
+      {
+        "bb_time": 2497,
+        "death_time": 2563,
+        "sec_after_bb": 66,
+        "killer": "void_spirit"
+      }
+    ]
+  },
+  "9076090863": {
+    "parsed": true,
+    "diebacks": []
+  },
+  "9076010002": {
+    "parsed": true,
+    "hero_id": 9,
+    "win": false,
+    "diebacks": []
+  },
+  "9075938653": {
+    "parsed": true,
+    "hero_id": 106,
+    "win": false,
+    "diebacks": []
+  },
+  "9075862067": {
+    "parsed": true,
+    "hero_id": 74,
+    "win": false,
+    "diebacks": []
+  },
+  "9075789705": {
+    "parsed": true,
+    "hero_id": 51,
+    "win": true,
+    "diebacks": [
+      {
+        "bb_time": 823,
+        "death_time": 886,
+        "sec_after_bb": 63,
+        "killer": "earth_spirit"
+      },
+      {
+        "bb_time": 2070,
+        "death_time": 2098,
+        "sec_after_bb": 28,
+        "killer": "slark"
+      }
+    ]
+  },
+  "9075740672": {
+    "parsed": true,
+    "hero_id": 67,
+    "win": false,
+    "diebacks": [
+      {
+        "bb_time": 1906,
+        "death_time": 1932,
+        "sec_after_bb": 26,
+        "killer": "dark_seer"
+      }
+    ]
+  },
+  "9075688186": {
+    "parsed": true,
+    "hero_id": 33,
+    "win": true,
+    "diebacks": []
+  },
+  "9074836720": {
+    "parsed": true,
+    "hero_id": 49,
+    "win": false,
+    "diebacks": []
+  },
+  "9074725851": {
+    "parsed": true,
+    "hero_id": 33,
+    "win": false,
+    "diebacks": []
+  },
+  "9074681957": {
+    "parsed": true,
+    "hero_id": 2,
+    "win": true,
+    "diebacks": []
+  },
+  "9074632850": {
+    "parsed": true,
+    "hero_id": 15,
+    "win": false,
+    "diebacks": []
+  },
+  "9074567905": {
+    "parsed": true,
+    "hero_id": 93,
+    "win": false,
+    "diebacks": []
+  },
+  "9074488023": {
+    "parsed": true,
+    "hero_id": 51,
+    "win": false,
+    "diebacks": []
+  },
+  "9073089475": {
+    "parsed": true,
+    "hero_id": 26,
+    "win": false,
+    "diebacks": []
+  },
+  "9073013773": {
+    "parsed": true,
+    "hero_id": 15,
+    "win": false,
+    "diebacks": []
+  },
+  "9071417875": {
+    "parsed": true,
+    "hero_id": 55,
+    "win": true,
+    "diebacks": []
+  },
+  "9071379899": {
+    "parsed": true,
+    "hero_id": 54,
+    "win": false,
+    "diebacks": [
+      {
+        "bb_time": 156,
+        "death_time": 258,
+        "sec_after_bb": 102,
+        "killer": "phoenix"
+      }
+    ]
+  },
+  "9071323874": {
+    "parsed": true,
+    "hero_id": 2,
+    "win": true,
+    "diebacks": [
+      {
+        "bb_time": 453,
+        "death_time": 511,
+        "sec_after_bb": 58,
+        "killer": "morphling"
+      }
+    ]
+  },
+  "9071281796": {
+    "parsed": true,
+    "hero_id": 49,
+    "win": true,
+    "diebacks": []
+  },
+  "9069805852": {
+    "parsed": true,
+    "hero_id": 2,
+    "win": true,
+    "diebacks": [
+      {
+        "bb_time": 353,
+        "death_time": 464,
+        "sec_after_bb": 111,
+        "killer": "storm_spirit"
+      },
+      {
+        "bb_time": 1096,
+        "death_time": 1205,
+        "sec_after_bb": 109,
+        "killer": "mirana"
+      }
+    ]
+  },
+  "9069743897": {
+    "parsed": true,
+    "hero_id": 95,
+    "win": true,
+    "diebacks": []
+  },
+  "9068816726": {
+    "parsed": true,
+    "hero_id": 106,
+    "win": true,
+    "diebacks": []
+  },
+  "9068742417": {
+    "parsed": true,
+    "hero_id": 32,
+    "win": false,
+    "diebacks": [
+      {
+        "bb_time": 1961,
+        "death_time": 2080,
+        "sec_after_bb": 119,
+        "killer": "hoodwink"
+      }
+    ]
+  },
+  "9068670944": {
+    "parsed": true,
+    "hero_id": 49,
+    "win": true,
+    "diebacks": []
+  },
+  "9068607462": {
+    "parsed": true,
+    "hero_id": 17,
+    "win": false,
+    "diebacks": [
+      {
+        "bb_time": 1951,
+        "death_time": 1957,
+        "sec_after_bb": 6,
+        "killer": "huskar"
+      }
+    ]
+  },
+  "9068543798": {
+    "parsed": true,
+    "hero_id": 106,
+    "win": true,
+    "diebacks": []
+  },
+  "9068263978": {
+    "parsed": true,
+    "hero_id": 19,
+    "win": false,
+    "diebacks": []
+  },
+  "9068218152": {
+    "parsed": true,
+    "hero_id": 106,
+    "win": true,
+    "diebacks": []
+  },
+  "9068181253": {
+    "parsed": true,
+    "hero_id": 2,
+    "win": true,
+    "diebacks": []
+  },
+  "9068128248": {
+    "parsed": true,
+    "hero_id": 93,
+    "win": false,
+    "diebacks": [
+      {
+        "bb_time": 3135,
+        "death_time": 3156,
+        "sec_after_bb": 21,
+        "killer": "faceless_void"
+      }
+    ]
+  },
+  "9067447749": {
+    "parsed": true,
+    "hero_id": 93,
+    "win": false,
+    "diebacks": []
+  },
+  "9067362073": {
+    "parsed": true,
+    "hero_id": 15,
+    "win": true,
+    "diebacks": []
+  },
+  "9067295668": {
+    "parsed": true,
+    "hero_id": 74,
+    "win": true,
+    "diebacks": [
+      {
+        "bb_time": 756,
+        "death_time": 849,
+        "sec_after_bb": 93,
+        "killer": "dawnbreaker"
+      }
+    ]
+  },
+  "9067233701": {
+    "parsed": true,
+    "hero_id": 43,
+    "win": true,
+    "diebacks": []
+  },
+  "9067171332": {
+    "parsed": true,
+    "hero_id": 93,
+    "win": true,
+    "diebacks": []
+  },
+  "9067059448": {
+    "parsed": true,
+    "hero_id": 2,
+    "win": false,
+    "diebacks": [
+      {
+        "bb_time": 3605,
+        "death_time": 3620,
+        "sec_after_bb": 15,
+        "killer": "enigma"
+      }
+    ]
+  },
+  "9066988869": {
+    "parsed": true,
+    "hero_id": 74,
+    "win": false,
+    "diebacks": [
+      {
+        "bb_time": 2480,
+        "death_time": 2536,
+        "sec_after_bb": 56,
+        "killer": "magnataur"
+      }
+    ]
+  },
+  "9066902688": {
+    "parsed": true,
+    "hero_id": 106,
+    "win": true,
+    "diebacks": []
+  },
+  "9066842470": {
+    "parsed": true,
+    "hero_id": 32,
+    "win": false,
+    "diebacks": [
+      {
+        "bb_time": 831,
+        "death_time": 936,
+        "sec_after_bb": 105,
+        "killer": "abyssal_underlord"
+      },
+      {
+        "bb_time": 2160,
+        "death_time": 2174,
+        "sec_after_bb": 14,
+        "killer": "lina"
+      }
+    ]
+  },
+  "9066792471": {
+    "parsed": true,
+    "hero_id": 43,
+    "win": false,
+    "diebacks": []
+  },
+  "9066749189": {
+    "parsed": true,
+    "hero_id": 15,
+    "win": false,
+    "diebacks": []
+  },
+  "9066707295": {
+    "parsed": true,
+    "hero_id": 106,
+    "win": false,
+    "diebacks": [
+      {
+        "bb_time": 2656,
+        "death_time": 2691,
+        "sec_after_bb": 35,
+        "killer": "skeleton_king"
+      }
+    ]
+  },
+  "9066684893": {
+    "parsed": true,
+    "hero_id": 93,
+    "win": false,
+    "diebacks": [
+      {
+        "bb_time": 1173,
+        "death_time": 1212,
+        "sec_after_bb": 39,
+        "killer": "enchantress"
+      }
+    ]
+  },
+  "9066660200": {
+    "parsed": true,
+    "hero_id": 2,
+    "win": false,
+    "diebacks": []
+  },
+  "9066624745": {
+    "parsed": true,
+    "hero_id": 74,
+    "win": false,
+    "diebacks": []
+  },
+  "9065777494": {
+    "parsed": true,
+    "hero_id": 6,
+    "win": true,
+    "diebacks": []
+  },
+  "9065718852": {
+    "parsed": true,
+    "hero_id": 97,
+    "win": true,
+    "diebacks": []
+  },
+  "9065629929": {
+    "parsed": true,
+    "hero_id": 2,
+    "win": true,
+    "diebacks": [
+      {
+        "bb_time": 2371,
+        "death_time": 2424,
+        "sec_after_bb": 53,
+        "killer": "necrolyte"
+      }
+    ]
+  },
+  "9065562628": {
+    "parsed": true,
+    "hero_id": 32,
+    "win": true,
+    "diebacks": []
+  },
+  "9065481163": {
+    "parsed": true,
+    "hero_id": 35,
+    "win": false,
+    "diebacks": []
+  },
+  "9065423296": {
+    "parsed": true,
+    "hero_id": 76,
+    "win": false,
+    "diebacks": [
+      {
+        "bb_time": 1694,
+        "death_time": 1706,
+        "sec_after_bb": 12,
+        "killer": "snapfire"
+      }
+    ]
+  },
+  "9065389145": {
+    "parsed": true,
+    "hero_id": 35,
+    "win": true,
+    "diebacks": []
+  },
+  "9065345138": {
+    "parsed": true,
+    "hero_id": 35,
+    "win": false,
+    "diebacks": []
+  },
+  "9064606682": {
+    "parsed": true,
+    "hero_id": 74,
+    "win": true,
+    "diebacks": []
+  },
+  "9064543135": {
+    "parsed": true,
+    "hero_id": 93,
+    "win": true,
+    "diebacks": []
+  },
+  "9064469084": {
+    "parsed": true,
+    "hero_id": 106,
+    "win": false,
+    "diebacks": []
+  },
+  "9064402054": {
+    "parsed": true,
+    "hero_id": 35,
+    "win": false,
+    "diebacks": []
+  },
+  "9064326786": {
+    "parsed": true,
+    "hero_id": 46,
+    "win": true,
+    "diebacks": []
+  },
+  "9064271902": {
+    "parsed": true,
+    "hero_id": 15,
+    "win": false,
+    "diebacks": []
+  },
+  "9064177359": {
+    "parsed": true,
+    "hero_id": 15,
+    "win": true,
+    "diebacks": []
+  },
+  "9064039266": {
+    "parsed": true,
+    "hero_id": 51,
+    "win": true,
+    "diebacks": [
+      {
+        "bb_time": 1158,
+        "death_time": 1198,
+        "sec_after_bb": 40,
+        "killer": "invoker"
+      }
+    ]
+  },
+  "9064006788": {
+    "parsed": true,
+    "hero_id": 93,
+    "win": true,
+    "diebacks": []
+  },
+  "9063975282": {
+    "parsed": true,
+    "hero_id": 51,
+    "win": true,
+    "diebacks": []
+  },
+  "9063946612": {
+    "parsed": true,
+    "hero_id": 51,
+    "win": true,
+    "diebacks": [
+      {
+        "bb_time": 1652,
+        "death_time": 1763,
+        "sec_after_bb": 111,
+        "killer": "dota_fountain"
+      }
+    ]
+  },
+  "9063903633": {
+    "parsed": true,
+    "hero_id": 97,
+    "win": false,
+    "diebacks": [
+      {
+        "bb_time": 2504,
+        "death_time": 2590,
+        "sec_after_bb": 86,
+        "killer": "legion_commander"
+      }
+    ]
+  }
+}
