@@ -1318,6 +1318,39 @@ class OpenDotaClient:
                 1511688542: "Meng Xin (萌新)",
                 1095157609: "Nuan Xin (暖心)",
                 86785208: "Super (Yakult)",
+                # Các tuyển thủ quốc tế nổi tiếng
+                70388657: "Dendi (B8)",
+                94054712: "Topson (Tundra / OG)",
+                86698277: "33 (Tundra / Liquid)",
+                302214028: "Collapse (Team Spirit)",
+                25907144: "Cr1t- (Falcons)",
+                317880638: "Save- (BetBoom)",
+                480412663: "gpk~ (BetBoom)",
+                106305042: "Larl (Team Spirit)",
+                201358612: "Nisha (Team Liquid)",
+                898455820: "Malr1ne (Falcons)",
+                132851371: "RAMZES666 (Tundra)",
+                93618577: "bzm (OG)",
+                97590558: "Ace (Gaimin Gladiators)",
+                10366616: "Sneyking (Falcons)",
+                116585378: "MidOne (MOUZ)",
+                136829091: "Whitemon (Tundra)",
+                375507918: "23savage (OG)",
+                100594231: "skem (Shopify)",
+                324277900: "Yopaj- (Shopify)",
+                152545459: "Gabbi (Blacklist)",
+                301750126: "Mikoto (Aurora)",
+                132309493: "Raven (Blacklist)",
+                155494381: "TIMS (Blacklist)",
+                164532005: "Armel (Aurora)",
+                206642367: "Ghost (Nigma)",
+                113435203: "ChYuaN (Talon)",
+                184138153: "Masaros (Bleed)",
+                389022189: "Palos (Aurora)",
+                173978074: "NothingToSay (Invictus)",
+                76904792: "poloson (Bleed)",
+                219755398: "Jîng (Nemesis)",
+                392565237: "JACKBOYS (Nemesis)",
             }
 
             if not query or not query.strip():
@@ -1338,6 +1371,9 @@ class OpenDotaClient:
                 "hung": (372105535, "hunghung (Htz / bmk)", "Ex-Apex"),
                 "bmk": (372105535, "hunghung (Htz / bmk)", "Ex-Apex"),
                 "htz": (372105535, "hunghung (Htz / bmk)", "Ex-Apex"),
+                # Ana & Mushi
+                "ana": (311360822, "Ana", "OG"),
+                "mushi": (89871557, "Mushi", "Fnatic"),
                 # Sccc
                 "sccc": (149486894, "Sccc (S-God)", "Newbee"),
                 "sgod": (149486894, "Sccc (S-God)", "Newbee"),
@@ -1367,6 +1403,27 @@ class OpenDotaClient:
                         f"Chung team {w_g} trận ({w_w}W-{w_g - w_w}L, {w_wr:.1f}%) | "
                         f"Đối đầu {a_g} trận ({a_w}W-{a_g - a_w}L, {a_wr:.1f}%)"
                     )
+
+            # 2. Giải thích rõ ràng cho các siêu sao phương Tây / Bắc Mỹ mà streamer chưa từng gặp do khác khu vực server
+            UNMET_PRO_EXPLANATIONS = {
+                "rtz": ("Arteezy (RTZ)", "Bắc Mỹ (NA)"),
+                "arteezy": ("Arteezy (RTZ)", "Bắc Mỹ (NA)"),
+                "miracle": ("Miracle-", "Châu Âu / MENA"),
+                "miracle-": ("Miracle-", "Châu Âu / MENA"),
+                "sumail": ("SumaiL", "Bắc Mỹ / Châu Âu"),
+                "yatoro": ("Yatoro (Raddan)", "Đông Âu (EEU)"),
+                "raddan": ("Yatoro (Raddan)", "Đông Âu (EEU)"),
+                "ceb": ("Ceb", "Tây Âu (WEU)"),
+                "notail": ("N0tail", "Tây Âu (WEU)"),
+                "n0tail": ("N0tail", "Tây Âu (WEU)"),
+                "puppey": ("Puppey", "Tây Âu (WEU)"),
+                "kuroky": ("KuroKy", "Tây Âu (WEU)"),
+                "kuro": ("KuroKy", "Tây Âu (WEU)"),
+            }
+
+            if q_clean in UNMET_PRO_EXPLANATIONS:
+                pro_full, region = UNMET_PRO_EXPLANATIONS[q_clean]
+                return f"⚠️ Streamer chưa từng gặp {pro_full} do tuyển thủ này chủ yếu thi đấu tại cụm máy chủ {region}."
 
             # 2. Ánh xạ alias trực tiếp sang account_id cho các Pro Trung Quốc / có ký tự chữ Hán / ký tự lạ
             PRO_ACCOUNT_MAP = {
@@ -1471,6 +1528,50 @@ class OpenDotaClient:
                 "nuanxin": 1095157609,
                 "nuan xin": 1095157609,
                 "暖心": 1095157609,
+                # Tuyển thủ phương Tây & SEA nổi bật
+                "topson": 94054712,
+                "topgod": 94054712,
+                "godson": 94054712,
+                "dendi": 70388657,
+                "anhba": 70388657,
+                "anh ba": 70388657,
+                "33": 86698277,
+                "net33": 86698277,
+                "collapse": 302214028,
+                "cr1t": 25907144,
+                "crit": 25907144,
+                "save": 317880638,
+                "gpk": 480412663,
+                "larl": 106305042,
+                "nisha": 201358612,
+                "malr1ne": 898455820,
+                "malrine": 898455820,
+                "bzm": 93618577,
+                "ramzes": 132851371,
+                "ramzes666": 132851371,
+                "ace": 97590558,
+                "sneyking": 10366616,
+                "midone": 116585378,
+                "whitemon": 136829091,
+                "23": 375507918,
+                "23savage": 375507918,
+                "skem": 100594231,
+                "yopaj": 324277900,
+                "gabbi": 152545459,
+                "mikoto": 301750126,
+                "raven": 132309493,
+                "tims": 155494381,
+                "armel": 164532005,
+                "ghost": 206642367,
+                "jackboys": 392565237,
+                "jackboy": 392565237,
+                "jing": 219755398,
+                "chyuan": 113435203,
+                "masaros": 184138153,
+                "palos": 389022189,
+                "nts": 173978074,
+                "nothingtosay": 173978074,
+                "poloson": 76904792,
             }
 
             matched = None
@@ -1533,8 +1634,9 @@ class OpenDotaClient:
             if not matched:
                 return f"⚠️ Streamer chưa từng thi đấu cùng hoặc đối đầu với pro player nào có tên khớp '{query.strip()}'."
 
+            has_custom = matched.get("account_id") in custom_display_names
             p_name = custom_display_names.get(matched.get("account_id")) or matched.get("name") or matched.get("personaname")
-            tag = f" ({matched['team_tag']})" if matched.get("team_tag") else ""
+            tag = f" ({matched['team_tag']})" if (matched.get("team_tag") and not has_custom) else ""
             tot_g = matched.get("games", 0)
             w_g = matched.get("with_games", 0)
             w_w = matched.get("with_win", 0)
