@@ -246,6 +246,7 @@ class OpenDotaClient:
         self._last_connapse_idx: int = -1
         self._connapse_deck: List[int] = []
         self._tworax_deck: List[int] = []
+        self._covy_deck: List[int] = []
         self._custom_pro_cache: Dict[int, Dict[str, Any]] = {}
         self._custom_pro_cache_time: Dict[int, float] = {}
         self.cache_ttl_custom_pro = 86400.0  # 24 hours
@@ -1552,6 +1553,22 @@ class OpenDotaClient:
         ]
         chosen_idx = self._draw_from_deck(self._tworax_deck, len(events))
         return events[chosen_idx]
+
+    def get_covy_message(self) -> str:
+        """Easter egg cho lệnh !covy: Những câu thả thính, văn thơ và meme hài hước về Lê Minh Hân Vy và Dota 2 / DH."""
+        quotes = [
+            "🐉 'Vy, anh (DH) cũng giống con Jakiro á, cũng có 2 đầu, em có muốn xem đầu còn lại của anh không?'",
+            "🏹 'Lê Minh Hân Vy à, anh có thể bắn trượt Arrow của Mirana, nhưng ánh mắt của em thì anh không bao giờ né được!'",
+            "🔮 'Faceless Void có thể úp Chrono bóp cả 4 đồng đội, nhưng riêng trái tim Lê Minh Hân Vy thì DH chỉ muốn giữ cho riêng mình!'",
+            "🛡️ 'BKB 9 giây rồi cũng hết, Divine Rapier cũng rơi, chỉ có tình cảm DH dành cho Lê Minh Hân Vy là bất tử như Aegis!'",
+            "⚡ 'Storm Spirit bay khắp map tốn cả bể mana, còn anh chỉ cần một nụ cười của Lê Minh Hân Vy là cạn sạch lý trí!'",
+            "🌸 'Dota 2 có hơn trăm vị tướng, nhưng với DH thì Lê Minh Hân Vy là vị tướng duy nhất khiến anh muốn gõ GG đầu hàng!'",
+            "🩸 'Bật Armlet rút máu thì thắt tim, nhưng chỉ cần Lê Minh Hân Vy mỉm cười là DH hồi sinh lực như vớ được Cheese!'",
+            "🥩 'Pudge cần Meat Hook mới kéo được người, còn Lê Minh Hân Vy chẳng cần dùng skill nào cũng kéo trọn tâm trí của DH!'",
+            "⏳ 'Dota 2 thua trận này thì gỡ trận khác, nhưng nếu lỡ để vuột mất Lê Minh Hân Vy thì DH biết tìm đâu ra round 2?'"
+        ]
+        chosen_idx = self._draw_from_deck(self._covy_deck, len(quotes))
+        return quotes[chosen_idx]
 
     def get_pro_message(self, query: Optional[str] = None) -> str:
         """Generate response for !pro <tên>: thống kê tỉ lệ đối đầu với pro player cụ thể."""

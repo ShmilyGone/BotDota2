@@ -232,6 +232,9 @@ class YouTubeLiveChatBot:
             "!chitiet": "!last",
             "!match": "!last",
             "!pmp": "!last",
+            "!vy": "!covy",
+            "!hanvy": "!covy",
+            "!leminhhanvy": "!covy",
         }.get(cmd_raw, cmd_raw)
 
         rate_key = cmd_key
@@ -267,6 +270,8 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_funfact_message()
         elif cmd_key in ["!connapse"]:
             reply = self.dota.get_connapse_message()
+        elif cmd_key in ["!covy"]:
+            reply = self.dota.get_covy_message()
         elif cmd_key in ["!2rax", "!tnc", "!2raxtnc"]:
             reply = self.dota.get_tworax_message()
         elif cmd_key in ["!dieback"]:
@@ -274,7 +279,7 @@ class YouTubeLiveChatBot:
         elif cmd_key in ["!last"]:
             reply = self.dota.get_last_message()
         elif cmd_key in ["!help"]:
-            reply = "📜 Lệnh có sẵn: !today, !last, !rank, !live, !career, !funfact, !connapse, !dieback."
+            reply = "📜 Lệnh có sẵn: !today, !last, !rank, !live, !covy, !career, !funfact, !connapse, !dieback."
         else:
             logger.info(f"Lệnh không hỗ trợ: '{cmd_raw}'. Bỏ qua.")
             return None

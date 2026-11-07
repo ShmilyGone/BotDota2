@@ -72,8 +72,10 @@ def run_terminal_test(dota_client: OpenDotaClient):
                 print(dota_client.get_funfact_message())
             elif cmd_name in ["!connapse", "!collapse"]:
                 print(dota_client.get_connapse_message())
+            elif cmd_name in ["!covy", "!vy", "!hanvy", "!leminhhanvy"]:
+                print(dota_client.get_covy_message())
             elif cmd_name in ["!help", "!lenh"]:
-                print("📜 Lệnh có sẵn: !today, !last, !rank, !live, !career, !funfact, !connapse")
+                print("📜 Lệnh có sẵn: !today, !last, !rank, !live, !covy, !career, !funfact, !connapse")
             else:
                 print(f"❓ Không nhận diện được lệnh '{cmd}'. Thử: !today, !rank, !career, !funfact, !connapse")
         except (KeyboardInterrupt, EOFError):
