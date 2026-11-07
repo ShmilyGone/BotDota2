@@ -223,10 +223,13 @@ class OpenDotaClient:
         self._wl_cache: Optional[Dict[str, Any]] = None
         self._wl_cache_time = 0.0
         self._last_funfact_idx: int = -1
+        self._funfact_deck: List[int] = []
         self._connapse_cache: Optional[List[Dict[str, Any]]] = None
         self._connapse_cache_time = 0.0
         self.cache_ttl_connapse = 86400.0  # 24 hours
         self._last_connapse_idx: int = -1
+        self._connapse_deck: List[int] = []
+        self._tworax_deck: List[int] = []
         self._custom_pro_cache: Dict[int, Dict[str, Any]] = {}
         self._custom_pro_cache_time: Dict[int, float] = {}
         self.cache_ttl_custom_pro = 86400.0  # 24 hours
@@ -1124,6 +1127,18 @@ class OpenDotaClient:
             logger.error(f"Lỗi trong get_career_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
+    def _draw_from_deck(self, deck: List[int], total_items: int) -> int:
+        """
+        Shuffle-bag (deck of cards) algorithm:
+        Đảm bảo phân bố đều 100% giữa các sự kiện, không bao giờ bị thiên vị hay lặp lại
+        một vài câu cho tới khi tất cả các câu trong danh sách đều đã xuất hiện đúng 1 lần.
+        """
+        if not deck:
+            new_deck = list(range(total_items))
+            random.shuffle(new_deck)
+            deck.extend(new_deck)
+        return deck.pop()
+
     def get_funfact_message(self) -> str:
         """Generate response for !funfact / !ditat: ngẫu nhiên 1 trong 10 fact thú vị độc đáo."""
         try:
@@ -1199,9 +1214,7 @@ class OpenDotaClient:
                 f"🎭 Fun fact: ⏱️ {name} cống hiến {_fmt(hours)} giờ ({days} ngày đêm) cho Dota 2! Bỏ túi {_fmt(kills)} Kills, {_fmt(assists)} Assists với KDA trung bình {kda_avg:.2f}."
             ]
 
-            available = [i for i in range(len(facts)) if i != self._last_funfact_idx]
-            chosen_idx = random.choice(available) if available else 0
-            self._last_funfact_idx = chosen_idx
+            chosen_idx = self._draw_from_deck(self._funfact_deck, len(facts))
             return facts[chosen_idx]
         except Exception as e:
             logger.error(f"Lỗi trong get_funfact_message: {e}", exc_info=True)
@@ -1285,13 +1298,25 @@ class OpenDotaClient:
                 f"🍻 Tình đồng chí keo sơn: Cùng cày {hours}h{minutes:02d}p Dota 2, trận gần nhất vừa quẩy ngày {latest_date}! Dù winrate {wr:.1f}% nhưng tình cảm đồng đội không bao giờ rạn nứt."
             ]
 
-            available = [i for i in range(len(facts)) if i != self._last_connapse_idx]
-            chosen_idx = random.choice(available) if available else 0
-            self._last_connapse_idx = chosen_idx
+            chosen_idx = self._draw_from_deck(self._connapse_deck, len(facts))
             return facts[chosen_idx]
         except Exception as e:
             logger.error(f"Lỗi trong get_connapse_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+
+    def get_tworax_message(self) -> str:
+        """Easter egg cho lệnh !2rax: Giai thoại kinh điển 2 rax TNC tại vòng loại TI8."""
+        events = [
+            "🏰 2 Rax TNC (TI8 Qualifiers): Phút 40, TNC Tigers dẫn hơn 20.000 net worth, 458 đập tan 2 cửa rax của TNC Predator! Giấc mơ The International lần đầu cho VN chỉ còn cách đúng 1 combat định mệnh.",
+            "🧜‍♂️ Ác mộng Naga Siren: Pha phòng ngự điên rồ nhất lịch sử vòng loại TI khi Tims dùng Song of the Siren câu giờ từng đợt Mega Creeps, khiến giấc mơ đi Canada của 458 tan thành mây khói!",
+            "📜 Châm ngôn kênh chat: 'Chừng nào nhà chính (Ancient) chưa nổ thì dẫn 2 rax như TNC vẫn thua!' Bài học xương máu đắt giá nhất sự nghiệp thi đấu chuyên nghiệp của streamer Trịnh 458.",
+            "🤝 Duyên nợ bất tận: inYourdreaM (IYD) năm xưa cùng 458 khóc hận vụ 2 rax, nay đã gặp lại nhau 89 trận ở pub SEA! Còn đối thủ lật kèo năm ấy là Kuku cũng đã đụng độ streamer tới 123 trận.",
+            "🇨🇦 Cách Vancouver một bước chân: Vụ 2 rax TNC 2018 là khoảnh khắc một tuyển thủ Dota 2 Việt Nam (458) ở gần sân khấu The International danh giá nhất thế giới hơn bất kỳ ai trong lịch sử!",
+            "✈️ Vé đi Canada bị huỷ: 1437 và 458 đã chuẩn bị vali sang Vancouver dự TI8 với khoản tiền thưởng hàng chục triệu USD, cho đến khi TNC Predator tạo nên cú Mega Comeback thế kỷ xé toang tấm vé!",
+            "💔 Vết thương không bao giờ lành: Trận thua 2 rax trước TNC Predator năm 2018 khiến 458 chia tay TNC Tigers về nước. Từ đó sinh ra 'hội chứng sợ quăng game' khi dẫn sâu của streamer!"
+        ]
+        chosen_idx = self._draw_from_deck(self._tworax_deck, len(events))
+        return events[chosen_idx]
 
     def get_pro_message(self, query: Optional[str] = None) -> str:
         """Generate response for !pro <tên>: thống kê tỉ lệ đối đầu với pro player cụ thể."""

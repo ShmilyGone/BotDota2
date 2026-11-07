@@ -269,6 +269,8 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_funfact_message()
         elif cmd_key in ["!connapse"]:
             reply = self.dota.get_connapse_message()
+        elif cmd_key in ["!2rax", "!tnc", "!2raxtnc"]:
+            reply = self.dota.get_tworax_message()
         elif cmd_key in ["!pro", "!pros"]:
             logger.info(f"Lệnh '{cmd_key}' đã bị khóa để tiết kiệm quota. Bỏ qua.")
             return None
