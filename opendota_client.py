@@ -1404,26 +1404,49 @@ class OpenDotaClient:
                         f"Đối đầu {a_g} trận ({a_w}W-{a_g - a_w}L, {a_wr:.1f}%)"
                     )
 
-            # 2. Giải thích rõ ràng cho các siêu sao phương Tây / Bắc Mỹ mà streamer chưa từng gặp do khác khu vực server
+            # 2. Giải thích chi tiết cho các siêu sao phương Tây / Bắc Mỹ mà streamer chưa từng gặp do khác khu vực server hoặc do dùng acc smurf ẩn match data
             UNMET_PRO_EXPLANATIONS = {
-                "rtz": ("Arteezy (RTZ)", "Bắc Mỹ (NA)"),
-                "arteezy": ("Arteezy (RTZ)", "Bắc Mỹ (NA)"),
-                "miracle": ("Miracle-", "Châu Âu / MENA"),
-                "miracle-": ("Miracle-", "Châu Âu / MENA"),
-                "sumail": ("SumaiL", "Bắc Mỹ / Châu Âu"),
-                "yatoro": ("Yatoro (Raddan)", "Đông Âu (EEU)"),
-                "raddan": ("Yatoro (Raddan)", "Đông Âu (EEU)"),
-                "ceb": ("Ceb", "Tây Âu (WEU)"),
-                "notail": ("N0tail", "Tây Âu (WEU)"),
-                "n0tail": ("N0tail", "Tây Âu (WEU)"),
-                "puppey": ("Puppey", "Tây Âu (WEU)"),
-                "kuroky": ("KuroKy", "Tây Âu (WEU)"),
-                "kuro": ("KuroKy", "Tây Âu (WEU)"),
+                # Arteezy
+                "rtz": "⚠️ Arteezy (RTZ) chủ yếu đánh cụm Bắc Mỹ (NA). Khi bootcamp SEA, RTZ thường dùng acc smurf ẩn match data nên API không lưu lịch sử công khai.",
+                "arteezy": "⚠️ Arteezy (RTZ) chủ yếu đánh cụm Bắc Mỹ (NA). Khi bootcamp SEA, RTZ thường dùng acc smurf ẩn match data nên API không lưu lịch sử công khai.",
+                "artour": "⚠️ Arteezy (RTZ) chủ yếu đánh cụm Bắc Mỹ (NA). Khi bootcamp SEA, RTZ thường dùng acc smurf ẩn match data nên API không lưu lịch sử công khai.",
+                # Miracle-
+                "miracle": "⚠️ Miracle- chủ yếu thi đấu tại cụm máy chủ Châu Âu (WEU) / Trung Đông (MENA), khác máy chủ với streamer.",
+                "miracle-": "⚠️ Miracle- chủ yếu thi đấu tại cụm máy chủ Châu Âu (WEU) / Trung Đông (MENA), khác máy chủ với streamer.",
+                # SumaiL
+                "sumail": "⚠️ SumaiL (The King) chủ yếu thi đấu tại cụm máy chủ Bắc Mỹ / Châu Âu, khác máy chủ với streamer.",
+                "king": "⚠️ SumaiL (The King) chủ yếu thi đấu tại cụm máy chủ Bắc Mỹ / Châu Âu, khác máy chủ với streamer.",
+                # Yatoro / Raddan
+                "yatoro": "⚠️ Yatoro (Raddan) chủ yếu thi đấu tại cụm máy chủ Đông Âu (EEU) / Tây Âu, khác khu vực với streamer.",
+                "raddan": "⚠️ Yatoro (Raddan) chủ yếu thi đấu tại cụm máy chủ Đông Âu (EEU) / Tây Âu, khác khu vực với streamer.",
+                # Satanic
+                "satanic": "⚠️ Satanic chủ yếu thi đấu tại cụm máy chủ Đông Âu / Châu Âu, khác máy chủ với streamer.",
+                # ATF / Ammar
+                "atf": "⚠️ ATF (Ammar The F) chủ yếu thi đấu tại cụm máy chủ Châu Âu / MENA, khác máy chủ với streamer.",
+                "ammar": "⚠️ ATF (Ammar The F) chủ yếu thi đấu tại cụm máy chủ Châu Âu / MENA, khác máy chủ với streamer.",
+                # Quinn / CCnC
+                "quinn": "⚠️ Quinn (CCnC) chủ yếu thi đấu tại cụm máy chủ Châu Âu / Bắc Mỹ, khác máy chủ với streamer.",
+                "ccnc": "⚠️ Quinn (CCnC) chủ yếu thi đấu tại cụm máy chủ Châu Âu / Bắc Mỹ, khác máy chủ với streamer.",
+                # Pure
+                "pure": "⚠️ Pure~ chủ yếu thi đấu tại cụm máy chủ Đông Âu / Châu Âu, khác máy chủ với streamer.",
+                # TORONTOTOKYO
+                "torontotokyo": "⚠️ TORONTOTOKYO chủ yếu thi đấu tại cụm máy chủ Đông Âu / Châu Âu, khác máy chủ với streamer.",
+                # Nightfall
+                "nightfall": "⚠️ Nightfall chủ yếu thi đấu tại cụm máy chủ Đông Âu / Châu Âu, khác máy chủ với streamer.",
+                # Skiter
+                "skiter": "⚠️ Skiter chủ yếu thi đấu tại cụm máy chủ Châu Âu, khác máy chủ với streamer.",
+                # Ceb & N0tail
+                "ceb": "⚠️ Ceb chủ yếu thi đấu tại cụm máy chủ Tây Âu (WEU), khác máy chủ với streamer.",
+                "notail": "⚠️ N0tail chủ yếu thi đấu tại cụm máy chủ Tây Âu (WEU), khác máy chủ với streamer.",
+                "n0tail": "⚠️ N0tail chủ yếu thi đấu tại cụm máy chủ Tây Âu (WEU), khác máy chủ với streamer.",
+                # Puppey & KuroKy
+                "puppey": "⚠️ Puppey chủ yếu thi đấu tại cụm máy chủ Tây Âu, khác máy chủ với streamer.",
+                "kuroky": "⚠️ KuroKy chủ yếu thi đấu tại cụm máy chủ Tây Âu, khác máy chủ với streamer.",
+                "kuro": "⚠️ KuroKy chủ yếu thi đấu tại cụm máy chủ Tây Âu, khác máy chủ với streamer.",
             }
 
             if q_clean in UNMET_PRO_EXPLANATIONS:
-                pro_full, region = UNMET_PRO_EXPLANATIONS[q_clean]
-                return f"⚠️ Streamer chưa từng gặp {pro_full} do tuyển thủ này chủ yếu thi đấu tại cụm máy chủ {region}."
+                return UNMET_PRO_EXPLANATIONS[q_clean]
 
             # 2. Ánh xạ alias trực tiếp sang account_id cho các Pro Trung Quốc / có ký tự chữ Hán / ký tự lạ
             PRO_ACCOUNT_MAP = {
@@ -1632,7 +1655,7 @@ class OpenDotaClient:
                                 break
 
             if not matched:
-                return f"⚠️ Streamer chưa từng thi đấu cùng hoặc đối đầu với pro player nào có tên khớp '{query.strip()}'."
+                return f"⚠️ Không tìm thấy lịch sử đấu với '{query.strip()}'. Tuyển thủ có thể khác cụm máy chủ (EU/NA) hoặc dùng acc smurf ẩn match data."
 
             has_custom = matched.get("account_id") in custom_display_names
             p_name = custom_display_names.get(matched.get("account_id")) or matched.get("name") or matched.get("personaname")
