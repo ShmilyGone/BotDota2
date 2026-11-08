@@ -242,7 +242,7 @@ class OpenDotaClient:
         self._funfact_deck: List[int] = []
         self._connapse_cache: Optional[List[Dict[str, Any]]] = None
         self._connapse_cache_time = 0.0
-        self.cache_ttl_connapse = 86400.0  # 24 hours
+        self.cache_ttl_connapse = 300.0  # 5 minutes
         self._last_connapse_idx: int = -1
         self._connapse_deck: List[int] = []
         self._tworax_deck: List[int] = []
@@ -436,6 +436,7 @@ class OpenDotaClient:
                             item_timeline.append(f"Shard ({min_int}p)")
 
                 pros = []
+                players = []
                 p_idx = chunk.find('players:[')
                 if p_idx != -1:
                     p_chunk = chunk[p_idx:p_idx+12000]
@@ -447,21 +448,34 @@ class OpenDotaClient:
                         rad_m = re.search(r'is_radiant:([01])', block)
                         acc_m = re.search(r'account_id:(\d+)', block)
                         role_m = re.search(r'role:"?([^",]+)', block)
-                        if name_m and pro_m:
+                        if name_m:
                             pname = name_m.group(1).strip()
-                            is_pro = int(pro_m.group(1))
+                            is_pro = int(pro_m.group(1)) if pro_m else 0
                             hero = hero_m.group(1).strip() if hero_m else ''
                             p_hid = int(hid_m.group(1)) if hid_m else 0
                             p_rad = int(rad_m.group(1)) if rad_m else 0
                             acc = acc_m.group(1) if acc_m else ''
                             p_role = role_m.group(1).strip() if role_m else ''
+                            p_acc_id = int(acc) if acc else None
+                            is_with = (int(is_rad) == p_rad)
+
+                            players.append({
+                                "name": pname,
+                                "hero": hero,
+                                "hero_id": p_hid,
+                                "account_id": p_acc_id,
+                                "role": p_role,
+                                "is_radiant": bool(p_rad),
+                                "is_with": is_with,
+                                "is_pro": bool(is_pro)
+                            })
+
                             if is_pro == 1 and acc != str(self.account_id):
-                                is_with = (int(is_rad) == p_rad)
                                 pros.append({
                                     "name": pname,
                                     "hero": hero,
                                     "hero_id": p_hid,
-                                    "account_id": int(acc) if acc else None,
+                                    "account_id": p_acc_id,
                                     "role": p_role,
                                     "is_with": is_with
                                 })
@@ -483,7 +497,8 @@ class OpenDotaClient:
                     "gold_per_min": int(gpm_m.group(1)) if gpm_m else None,
                     "last_hits": int(cs_m.group(1)) if cs_m else None,
                     "item_timeline": item_timeline[:4],
-                    "pros": pros
+                    "pros": pros,
+                    "players": players
                 })
             return parsed_matches
         except Exception as e:
@@ -1568,41 +1583,74 @@ class OpenDotaClient:
             return matches
         return self._connapse_cache or []
 
+    def _get_all_connapse_duo_matches(self) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], str]:
+        """
+        Tìm tất cả các trận đấu duo cùng connapse:
+        - Lịch sử từ OpenDota (/matches?included_account_id=968755756)
+        - Các trận vừa đánh hôm nay trong ca stream (từ D2PT players list hoặc OpenDota)
+        Trả về: (same_team_matches, today_duo_matches, date_str)
+        """
+        connapse_id = 968755756
+        historical = self._get_connapse_matches()
+
+        same_team_matches = []
+        for m in historical:
+            my_slot = m.get("player_slot", 0)
+            my_radiant = my_slot < 128
+            heroes_map = m.get("heroes") or {}
+            connapse_slot = None
+            for slot_str, p_info in heroes_map.items():
+                if str(p_info.get("account_id")) == str(connapse_id):
+                    connapse_slot = int(slot_str)
+                    break
+            is_same_team = (connapse_slot is not None) and ((my_slot < 128) == (connapse_slot < 128))
+            if is_same_team:
+                same_team_matches.append(m)
+
+        known_mids = {m.get("match_id") for m in same_team_matches if m.get("match_id")}
+
+        # Quét các trận trong ca stream hôm nay
+        session_matches, date_str = self.get_current_stream_matches()
+        today_duo_matches = []
+
+        for sm in session_matches:
+            sm_id = sm.get("match_id")
+            found_conn = False
+            is_same = False
+
+            # 1. Kiểm tra players list (D2PT trích xuất đầy đủ 10 người)
+            for p in sm.get("players", []):
+                if p.get("account_id") == connapse_id:
+                    found_conn = True
+                    is_same = p.get("is_with", True)
+                    break
+
+            # 2. Kiểm tra heroes map (nếu từ OpenDota)
+            if not found_conn and sm.get("heroes"):
+                for slot_str, p_info in sm.get("heroes", {}).items():
+                    if str(p_info.get("account_id")) == str(connapse_id):
+                        found_conn = True
+                        is_same = (int(slot_str) < 128) == (sm.get("player_slot", 0) < 128)
+                        break
+
+            if found_conn and is_same:
+                today_duo_matches.append(sm)
+                if sm_id not in known_mids:
+                    same_team_matches.append(sm)
+                    known_mids.add(sm_id)
+
+        return same_team_matches, today_duo_matches, date_str
+
     def get_connapse_message(self) -> str:
         """Easter egg cho lệnh !connapse: Thống kê kết quả duo cùng connapse hôm nay và tổng sự nghiệp."""
         try:
-            connapse_id = "968755756"
-            matches = self._get_connapse_matches()
-            if not matches:
+            same_team_matches, today_duo_matches, date_str = self._get_all_connapse_duo_matches()
+            if not same_team_matches:
                 return "🌸 Hôm nay streamer đơn độc leo rank, chưa thấy bóng dáng connapse."
 
-            same_team_matches = []
-            all_wins = 0
-            for m in matches:
-                my_slot = m.get("player_slot", 0)
-                my_radiant = my_slot < 128
-                radiant_win = m.get("radiant_win", False)
-                my_win = (radiant_win and my_radiant) or (not radiant_win and not my_radiant)
-
-                heroes_map = m.get("heroes") or {}
-                connapse_slot = None
-                for slot_str, p_info in heroes_map.items():
-                    if str(p_info.get("account_id")) == connapse_id:
-                        connapse_slot = int(slot_str)
-                        break
-
-                is_same_team = (connapse_slot is not None) and ((my_slot < 128) == (connapse_slot < 128))
-                if is_same_team:
-                    same_team_matches.append(m)
-                    if my_win:
-                        all_wins += 1
-
+            all_wins = sum(1 for m in same_team_matches if self._is_win(m))
             all_games = len(same_team_matches)
             all_losses = all_games - all_wins
-
-            session_matches, date_str = self.get_current_stream_matches()
-            session_match_ids = {m.get("match_id") for m in session_matches if m.get("match_id")}
-            today_duo_matches = [m for m in same_team_matches if m.get("match_id") in session_match_ids]
 
             if today_duo_matches:
                 today_games = len(today_duo_matches)
@@ -1621,40 +1669,14 @@ class OpenDotaClient:
     def get_duo_message(self) -> str:
         """Easter egg cho lệnh !duo: Chỉ số tâm đầu ý hợp và chỉ số nhường mạng giữa DH & connapse."""
         try:
-            connapse_id = "968755756"
-            matches = self._get_connapse_matches()
-            if not matches:
-                return "⚠️ Chưa tìm thấy dữ liệu duo giữa DH và connapse trên OpenDota!"
-
-            same_team_matches = []
-            all_wins = 0
-            streamer_kills = 0
-            streamer_assists = 0
-
-            for m in matches:
-                my_slot = m.get("player_slot", 0)
-                my_radiant = my_slot < 128
-                radiant_win = m.get("radiant_win", False)
-                my_win = (radiant_win and my_radiant) or (not radiant_win and not my_radiant)
-
-                heroes_map = m.get("heroes") or {}
-                connapse_slot = None
-                for slot_str, p_info in heroes_map.items():
-                    if str(p_info.get("account_id")) == connapse_id:
-                        connapse_slot = int(slot_str)
-                        break
-
-                is_same_team = (connapse_slot is not None) and ((my_slot < 128) == (connapse_slot < 128))
-                if is_same_team:
-                    same_team_matches.append(m)
-                    if my_win:
-                        all_wins += 1
-                    streamer_kills += m.get("kills", 0)
-                    streamer_assists += m.get("assists", 0)
-
+            same_team_matches, today_duo_matches, date_str = self._get_all_connapse_duo_matches()
             all_games = len(same_team_matches)
             if all_games == 0:
                 return "⚠️ Chưa tìm thấy trận đấu chung team nào giữa DH và connapse!"
+
+            all_wins = sum(1 for m in same_team_matches if self._is_win(m))
+            streamer_kills = sum(m.get("kills", 0) for m in same_team_matches)
+            streamer_assists = sum(m.get("assists", 0) for m in same_team_matches)
 
             wr = (all_wins / max(1, all_games)) * 100.0
             kp_avg = (streamer_kills + streamer_assists) / max(1, all_games)
