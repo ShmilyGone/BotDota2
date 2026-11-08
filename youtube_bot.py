@@ -3,7 +3,8 @@ import sys
 import time
 import re
 import logging
-from typing import Optional, Set, Dict
+import threading
+from typing import Optional, Set, Dict, List, Any, Tuple
 import requests
 import pytchat
 from pytchat import util as pytchat_util, config as pytchat_config
@@ -146,6 +147,42 @@ def resolve_channel_live_video(target_channel: str) -> Optional[str]:
     return None
 
 class YouTubeLiveChatBot:
+    COMMAND_ALIASES = {
+        "!homnay": "!today",
+        "!lenh": "!help",
+        "!bot": "!help",
+        "!commands": "!help",
+        "!chuoi": "!streak",
+        "!5tran": "!recent",
+        "!10tran": "!recent",
+        "!besthero": "!heroes",
+        "!totals": "!career",
+        "!sunghiep": "!career",
+        "!su-nghiep": "!career",
+        "!ditat": "!funfact",
+        "!fact": "!funfact",
+        "!collapse": "!connapse",
+        "!hopvia": "!duo",
+        "!synergy": "!duo",
+        "!dongdoi": "!mate",
+        "!ban": "!mate",
+        "!dangdanh": "!live",
+        "!chitiet": "!last",
+        "!match": "!last",
+        "!pmp": "!last",
+        "!vy": "!covy",
+        "!hanvy": "!covy",
+        "!leminhhanvy": "!covy",
+    }
+
+    LOCKED_COMMANDS = {"!streak", "!recent", "!heroes", "!mate", "!covy"}
+
+    SUPPORTED_COMMANDS = {
+        "!today", "!rank", "!pro", "!pros", "!live", "!career",
+        "!funfact", "!quota", "!2rax", "!tnc", "!2raxtnc", "!dieback",
+        "!last", "!help", "!connapse", "!duo"
+    }
+
     def __init__(
         self,
         dota_client: OpenDotaClient,
@@ -154,7 +191,13 @@ class YouTubeLiveChatBot:
         video_id: Optional[str] = None,
         command_cooldown: float = 20.0,
         global_cooldown: float = 10.0,
-        dedup_window: float = 60.0
+        dedup_window: float = 60.0,
+        queue_mode: str = "auto",
+        queue_max_size: int = 5,
+        queue_delay_normal: float = 10.0,
+        queue_delay_medium: float = 15.0,
+        queue_delay_low: float = 25.0,
+        queue_ttl: float = 90.0,
     ):
         self.dota = dota_client
         self.account_pool = account_pool or AccountPool()
@@ -166,6 +209,14 @@ class YouTubeLiveChatBot:
         # (60s = 1 phút: đủ để chặn spam lặp lại liên tục nhưng không bỏ qua người xem mới).
         self.dedup_window = dedup_window
 
+        # Cấu hình Command Queue & Điều tiết giãn cách
+        self.queue_mode = (queue_mode or "auto").strip().lower()
+        self.queue_max_size = queue_max_size
+        self.queue_delay_normal = queue_delay_normal
+        self.queue_delay_medium = queue_delay_medium
+        self.queue_delay_low = queue_delay_low
+        self.queue_ttl = queue_ttl
+
         self.live_chat_id: Optional[str] = None
         self.current_video_id: Optional[str] = None
 
@@ -175,6 +226,63 @@ class YouTubeLiveChatBot:
         # Chống trùng lặp: câu trả lời đã gửi gần nhất cho từng lệnh + thời điểm gửi
         self.last_reply = {}
         self.last_reply_time = {}
+
+        # Trạng thái hàng đợi & luồng worker ngầm
+        self.command_queue: List[Dict[str, Any]] = []
+        self.queue_lock = threading.Lock()
+        self._worker_thread: Optional[threading.Thread] = None
+        self._stop_event = threading.Event()
+
+    def get_effective_cooldown(self) -> float:
+        """
+        Tính toán khoảng cách gửi tin (giây) dựa trên chế độ cấu hình và Quota khả dụng.
+        - Chế độ 'off': dùng global_cooldown
+        - Chế độ 'fixed': dùng queue_delay_normal
+        - Chế độ 'auto': tự động thích ứng theo số tin còn lại của toàn bộ Account Pool
+        """
+        if self.queue_mode == "off":
+            return self.global_cooldown
+
+        if self.queue_mode == "fixed":
+            return self.queue_delay_normal
+
+        # Auto mode:
+        try:
+            summary = self.account_pool.get_quota_summary()
+            rem = summary.get("total_remaining_messages", 0)
+            if rem > 150:
+                return self.queue_delay_normal    # 10s (mặc định dồi dào)
+            elif rem >= 50:
+                return self.queue_delay_medium    # 15s (trung bình)
+            else:
+                return self.queue_delay_low       # 25s (gần cạn)
+        except Exception as e:
+            logger.warning(f"Không thể đọc quota summary cho cooldown: {e}")
+            return self.queue_delay_normal
+
+    def get_effective_max_queue_size(self) -> int:
+        """
+        Xác định sức chứa tối đa của hàng đợi lệnh.
+        Ở chế độ auto, hàng đợi sẽ tự động thu hẹp khi quota gần cạn để bảo vệ pool.
+        """
+        if self.queue_mode == "off":
+            return 0
+
+        if self.queue_mode == "fixed":
+            return self.queue_max_size
+
+        # Auto mode:
+        try:
+            summary = self.account_pool.get_quota_summary()
+            rem = summary.get("total_remaining_messages", 0)
+            if rem > 150:
+                return self.queue_max_size
+            elif rem >= 50:
+                return max(2, self.queue_max_size - 2)
+            else:
+                return 2
+        except Exception:
+            return self.queue_max_size
 
     def authenticate(self, interactive: bool = False):
         """Authenticate all accounts in the pool."""
@@ -199,119 +307,232 @@ class YouTubeLiveChatBot:
             self.last_global_reply_time = time.time()
         return success
 
+    def execute_command(self, cmd_key: str, arg: str = "") -> Optional[str]:
+        """Tạo nội dung câu trả lời cho lệnh Dota 2 tương ứng."""
+        try:
+            if cmd_key in ["!today"]:
+                return self.dota.get_today_message()
+            elif cmd_key in ["!rank"]:
+                return self.dota.get_rank_message()
+            elif cmd_key in ["!pro", "!pros"]:
+                return self.dota.get_today_pros_message()
+            elif cmd_key in ["!live"]:
+                return self.dota.get_live_message()
+            elif cmd_key in ["!career"]:
+                return self.dota.get_career_message()
+            elif cmd_key in ["!funfact"]:
+                return self.dota.get_funfact_message()
+            elif cmd_key in ["!quota"]:
+                return self.account_pool.get_quota_chat_message()
+            elif cmd_key in ["!2rax", "!tnc", "!2raxtnc"]:
+                return self.dota.get_tworax_message()
+            elif cmd_key in ["!dieback"]:
+                return self.dota.get_dieback_message(arg)
+            elif cmd_key in ["!last"]:
+                return self.dota.get_last_message()
+            elif cmd_key in ["!connapse", "!collapse"]:
+                return self.dota.get_connapse_message()
+            elif cmd_key in ["!duo", "!hopvia", "!synergy"]:
+                return self.dota.get_duo_message()
+            elif cmd_key in ["!help"]:
+                return (
+                    "📜 Lệnh: !today, !last, !rank, !live, !pro, !career, !funfact. "
+                    "⏱️ Chờ 10s giữa các lệnh, 1p nếu lặp lại cùng 1 lệnh. "
+                    "Bot chưa kịp rep hãy gõ lại nhé! Gõ !quota để kiểm tra số tin còn lại của BOT."
+                )
+        except Exception as e:
+            logger.error(f"Lỗi khi thực thi lệnh '{cmd_key}': {e}", exc_info=True)
+            return None
+        return None
+
+    def enqueue_command(self, command: str, author_name: str) -> bool:
+        """
+        Phân tích và đưa lệnh vào hàng đợi (Command Queue).
+        Tự động chống spam, loại bỏ lệnh trùng lặp và kiểm tra quota khả dụng.
+        """
+        parts = command.strip().split(maxsplit=1)
+        if not parts:
+            return False
+
+        cmd_raw = parts[0].lower()
+        arg = parts[1].strip() if len(parts) > 1 else ""
+        cmd_key = self.COMMAND_ALIASES.get(cmd_raw, cmd_raw)
+
+        if cmd_key in self.LOCKED_COMMANDS:
+            logger.info(f"Lệnh '{cmd_key}' đang tạm thời bị khóa. Bỏ qua.")
+            return False
+
+        if cmd_key not in self.SUPPORTED_COMMANDS:
+            logger.info(f"Lệnh không hỗ trợ: '{cmd_raw}'. Bỏ qua.")
+            return False
+
+        now = time.time()
+
+        # Kiểm tra dedup: Nếu lệnh vừa được gửi trong dedup_window, bỏ qua để tránh spam trùng lặp
+        if (now - self.last_reply_time.get(cmd_key, 0) < self.dedup_window):
+            wait_left = self.dedup_window - (now - self.last_reply_time[cmd_key])
+            logger.info(
+                f"Lệnh '{cmd_key}' vừa được trả lời cách đây {(now - self.last_reply_time[cmd_key]):.1f}s "
+                f"(còn {wait_left:.1f}s dedup cooldown). Bỏ qua trùng lặp."
+            )
+            return False
+
+        # Kiểm tra quota còn lại
+        try:
+            summary = self.account_pool.get_quota_summary()
+            if summary.get("total_remaining_messages", 0) <= 0:
+                logger.warning("Toàn bộ tài khoản đã hết quota, không nhận lệnh vào hàng đợi.")
+                return False
+        except Exception:
+            pass
+
+        with self.queue_lock:
+            # Kiểm tra xem lệnh này đã có sẵn trong hàng đợi chưa
+            for item in self.command_queue:
+                if item["cmd_key"] == cmd_key and item["arg"] == arg:
+                    logger.info(f"Lệnh '{cmd_key}' đã có sẵn trong hàng đợi (đang chờ tới lượt). Bỏ qua trùng lặp.")
+                    return False
+
+            # Kiểm tra độ dài hàng đợi
+            max_size = self.get_effective_max_queue_size()
+            if len(self.command_queue) >= max_size:
+                logger.info(f"Hàng đợi lệnh đã đầy ({len(self.command_queue)}/{max_size}). Bỏ qua lệnh '{cmd_key}' từ [{author_name}].")
+                return False
+
+            self.command_queue.append({
+                "raw_cmd": command,
+                "cmd_key": cmd_key,
+                "arg": arg,
+                "author_name": author_name,
+                "enqueued_at": now
+            })
+            pos = len(self.command_queue)
+            delay = self.get_effective_cooldown()
+            logger.info(f"📥 Đã thêm lệnh '{cmd_key}' từ [{author_name}] vào hàng đợi (Vị trí #{pos}, giãn cách: {delay:.0f}s).")
+            return True
+
+    def _process_queue_tick(self):
+        """Xử lý 1 nhịp của hàng đợi lệnh."""
+        now = time.time()
+        effective_cooldown = self.get_effective_cooldown()
+
+        # Kiểm tra khoảng cách tối thiểu giữa 2 tin nhắn gửi ra chat
+        if now - self.last_global_reply_time < effective_cooldown:
+            return
+
+        item = None
+        with self.queue_lock:
+            # Hủy các lệnh quá hạn trong queue (TTL)
+            while self.command_queue and (now - self.command_queue[0]["enqueued_at"] > self.queue_ttl):
+                expired = self.command_queue.pop(0)
+                logger.info(f"⏳ Lệnh '{expired['cmd_key']}' từ [{expired['author_name']}] đã chờ quá {self.queue_ttl:.0f}s trong queue. Bỏ qua.")
+
+            if not self.command_queue:
+                return
+
+            item = self.command_queue.pop(0)
+
+        if not item:
+            return
+
+        cmd_key = item["cmd_key"]
+        arg = item["arg"]
+        author_name = item["author_name"]
+
+        reply = self.execute_command(cmd_key, arg)
+        if not reply:
+            return
+
+        # Kiểm tra dedup lần cuối trước khi gửi (trường hợp cùng nội dung)
+        if (
+            self.last_reply.get(cmd_key) == reply
+            and now - self.last_reply_time.get(cmd_key, 0) < self.dedup_window
+        ):
+            logger.info(f"Lệnh '{cmd_key}' trả về nội dung giống lần trước (trong {self.dedup_window:.0f}s), bỏ qua để tiết kiệm quota.")
+            self.last_command_time[cmd_key] = now
+            return
+
+        success = self.send_chat_message(reply)
+        if success:
+            self.last_reply[cmd_key] = reply
+            self.last_reply_time[cmd_key] = now
+            self.last_command_time[cmd_key] = now
+            with self.queue_lock:
+                q_left = len(self.command_queue)
+            logger.info(f"🚀 [QUEUE] Đã trả lời lệnh '{cmd_key}' cho [{author_name}] thành công! (Còn lại trong queue: {q_left} lệnh).")
+
+    def _start_queue_worker(self):
+        """Khởi chạy worker thread xử lý hàng đợi lệnh ngầm."""
+        if self._worker_thread and self._worker_thread.is_alive():
+            return
+        self._stop_event.clear()
+        self._worker_thread = threading.Thread(
+            target=self._queue_worker_loop,
+            daemon=True,
+            name="CommandQueueWorker"
+        )
+        self._worker_thread.start()
+        logger.info("🧵 Đã khởi động luồng CommandQueueWorker chạy ngầm.")
+
+    def _queue_worker_loop(self):
+        """Vòng lặp ngầm liên tục kiểm tra và gửi các lệnh trong hàng đợi."""
+        while not self._stop_event.is_set():
+            try:
+                self._process_queue_tick()
+            except Exception as e:
+                logger.error(f"Lỗi trong _queue_worker_loop: {e}", exc_info=True)
+            time.sleep(0.5)
+
     def handle_command(self, command: str, author_name: str) -> Optional[str]:
-        """Process chat command and return response string if applicable."""
+        """Xử lý lệnh trực tiếp không qua hàng đợi (dùng khi queue_mode == 'off')."""
         parts = command.strip().split(maxsplit=1)
         if not parts:
             return None
 
         cmd_raw = parts[0].lower()
         arg = parts[1].strip() if len(parts) > 1 else ""
-        now = time.time()
+        cmd_key = self.COMMAND_ALIASES.get(cmd_raw, cmd_raw)
 
-        # Gộp alias về lệnh chuẩn để cooldown + chống trùng lặp không bị
-        # lách qua bằng cách gõ !homnay thay cho !today, !lenh thay cho !help, ...
-        cmd_key = {
-            "!homnay": "!today",
-            "!lenh": "!help",
-            "!bot": "!help",
-            "!commands": "!help",
-            "!chuoi": "!streak",
-            "!5tran": "!recent",
-            "!10tran": "!recent",
-            "!besthero": "!heroes",
-            "!totals": "!career",
-            "!sunghiep": "!career",
-            "!su-nghiep": "!career",
-            "!ditat": "!funfact",
-            "!fact": "!funfact",
-            "!collapse": "!connapse",
-            "!hopvia": "!duo",
-            "!synergy": "!duo",
-            "!dongdoi": "!mate",
-            "!ban": "!mate",
-            "!dangdanh": "!live",
-            "!chitiet": "!last",
-            "!match": "!last",
-            "!pmp": "!last",
-            "!vy": "!covy",
-            "!hanvy": "!covy",
-            "!leminhhanvy": "!covy",
-        }.get(cmd_raw, cmd_raw)
-
-        rate_key = cmd_key
-
-        if now - self.last_global_reply_time < self.global_cooldown:
-            wait_left = self.global_cooldown - (now - self.last_global_reply_time)
-            logger.info(
-                f"Bot vừa gửi tin nhắn khác cách đây {(now - self.last_global_reply_time):.1f}s "
-                f"(global cooldown {self.global_cooldown:.0f}s, còn {wait_left:.1f}s). Bỏ qua để tránh spam."
-            )
-            return None
-
-        if rate_key in self.last_command_time:
-            if now - self.last_command_time[rate_key] < self.command_cooldown:
-                wait_left = self.command_cooldown - (now - self.last_command_time[rate_key])
-                logger.info(f"Lệnh '{rate_key}' đang trong thời gian chờ (còn {wait_left:.1f}s cooldown). Bỏ qua.")
-                return None
-
-        reply = None
-
-        if cmd_key in ["!today"]:
-            reply = self.dota.get_today_message()
-        elif cmd_key in ["!rank"]:
-            reply = self.dota.get_rank_message()
-        elif cmd_key in ["!streak", "!recent", "!heroes", "!mate", "!covy"]:
+        if cmd_key in self.LOCKED_COMMANDS:
             logger.info(f"Lệnh '{cmd_key}' đang tạm thời bị khóa. Bỏ qua.")
             return None
-        elif cmd_key in ["!connapse", "!collapse"]:
-            reply = self.dota.get_connapse_message()
-        elif cmd_key in ["!duo", "!hopvia", "!synergy"]:
-            reply = self.dota.get_duo_message()
-        elif cmd_key in ["!pro", "!pros"]:
-            reply = self.dota.get_today_pros_message()
-        elif cmd_key in ["!live"]:
-            reply = self.dota.get_live_message()
-        elif cmd_key in ["!career"]:
-            reply = self.dota.get_career_message()
-        elif cmd_key in ["!funfact"]:
-            reply = self.dota.get_funfact_message()
-        elif cmd_key in ["!quota"]:
-            reply = self.account_pool.get_quota_chat_message()
-        elif cmd_key in ["!2rax", "!tnc", "!2raxtnc"]:
-            reply = self.dota.get_tworax_message()
-        elif cmd_key in ["!dieback"]:
-            reply = self.dota.get_dieback_message(arg)
-        elif cmd_key in ["!last"]:
-            reply = self.dota.get_last_message()
-        elif cmd_key in ["!help"]:
-            reply = (
-                "📜 Lệnh: !today, !last, !rank, !live, !pro, !career, !funfact. "
-                "⏱️ Chờ 10s giữa các lệnh, 1p nếu lặp lại cùng 1 lệnh. "
-                "Bot chưa kịp rep hãy gõ lại nhé! Gõ !quota để kiểm tra số tin còn lại của BOT."
-            )
-        else:
+
+        if cmd_key not in self.SUPPORTED_COMMANDS:
             logger.info(f"Lệnh không hỗ trợ: '{cmd_raw}'. Bỏ qua.")
             return None
 
+        now = time.time()
+        effective_cooldown = self.get_effective_cooldown()
+
+        if now - self.last_global_reply_time < effective_cooldown:
+            wait_left = effective_cooldown - (now - self.last_global_reply_time)
+            logger.info(
+                f"Bot vừa gửi tin nhắn khác cách đây {(now - self.last_global_reply_time):.1f}s "
+                f"(cooldown {effective_cooldown:.0f}s, còn {wait_left:.1f}s). Bỏ qua để tránh spam."
+            )
+            return None
+
+        if cmd_key in self.last_command_time:
+            if now - self.last_command_time[cmd_key] < self.command_cooldown:
+                wait_left = self.command_cooldown - (now - self.last_command_time[cmd_key])
+                logger.info(f"Lệnh '{cmd_key}' đang trong thời gian chờ (còn {wait_left:.1f}s cooldown). Bỏ qua.")
+                return None
+
+        reply = self.execute_command(cmd_key, arg)
         if reply:
-            # Chống trùng lặp: nếu câu trả lời giống hệt lần đã gửi gần đây
-            # (trong dedup_window) thì bỏ qua, tiết kiệm 20 quota units/tin.
-            # Không cập nhật last_reply_time ở đây để cửa sổ 3 phút không bị
-            # kéo dài vô hạn khi có người gõ lệnh liên tục.
             if (
-                self.last_reply.get(rate_key) == reply
-                and now - self.last_reply_time.get(rate_key, 0) < self.dedup_window
+                self.last_reply.get(cmd_key) == reply
+                and now - self.last_reply_time.get(cmd_key, 0) < self.dedup_window
             ):
                 logger.info(
-                    f"Lệnh '{rate_key}' trả về nội dung giống lần trước "
+                    f"Lệnh '{cmd_key}' trả về nội dung giống lần trước "
                     f"(trong {self.dedup_window:.0f}s), bỏ qua để tiết kiệm quota."
                 )
-                self.last_command_time[rate_key] = now
+                self.last_command_time[cmd_key] = now
                 return None
-            self.last_reply[rate_key] = reply
-            self.last_reply_time[rate_key] = now
-            self.last_command_time[rate_key] = now
+            self.last_reply[cmd_key] = reply
+            self.last_reply_time[cmd_key] = now
+            self.last_command_time[cmd_key] = now
             return reply
         return None
 
@@ -329,6 +550,12 @@ class YouTubeLiveChatBot:
             logger.info("Chạy 'python auth_pool.py' để xác thực các tài khoản mới nếu chưa tạo token.")
 
         logger.info(f"🚀 Bot Dota 2 đang ở chế độ HYBRID + XOAY ACCOUNT POOL cho kênh: {self.target_channel or 'kênh của bạn'}!")
+        eff_cd = self.get_effective_cooldown()
+        eff_q = self.get_effective_max_queue_size()
+        logger.info(f"🚦 [COMMAND QUEUE] Chế độ: {self.queue_mode.upper()} | Giãn cách hiện tại: {eff_cd:.0f}s | Hàng đợi tối đa: {eff_q} lệnh | TTL: {self.queue_ttl:.0f}s")
+
+        if self.queue_mode != "off":
+            self._start_queue_worker()
 
         while True:
             try:
@@ -377,9 +604,12 @@ class YouTubeLiveChatBot:
 
                             if msg_text.startswith("!"):
                                 logger.info(f"💬 Nhận lệnh từ [{author_name}]: {msg_text}")
-                                reply = self.handle_command(msg_text, author_name)
-                                if reply:
-                                    self.send_chat_message(reply)
+                                if self.queue_mode != "off":
+                                    self.enqueue_command(msg_text, author_name)
+                                else:
+                                    reply = self.handle_command(msg_text, author_name)
+                                    if reply:
+                                        self.send_chat_message(reply)
                     except Exception as e:
                         logger.warning(f"Lỗi đọc tin nhắn pytchat: {e}")
 
@@ -390,6 +620,7 @@ class YouTubeLiveChatBot:
 
             except KeyboardInterrupt:
                 logger.info("Đã dừng bot theo yêu cầu người dùng.")
+                self._stop_event.set()
                 break
             except Exception as e:
                 logger.error(f"Lỗi không mong muốn trong vòng lặp bot: {e}")

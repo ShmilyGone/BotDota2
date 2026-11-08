@@ -62,8 +62,12 @@ def run_terminal_test(dota_client: OpenDotaClient):
                 print(dota_client.get_last_message())
             elif cmd_name in ["!rank"]:
                 print(dota_client.get_rank_message())
-            elif cmd_name in ["!streak", "!chuoi", "!recent", "!5tran", "!heroes", "!besthero", "!mate", "!covy", "!vy", "!hanvy", "!leminhhanvy", "!connapse", "!collapse"]:
+            elif cmd_name in ["!streak", "!chuoi", "!recent", "!5tran", "!heroes", "!besthero", "!mate", "!covy", "!vy", "!hanvy", "!leminhhanvy"]:
                 print(f"⚠️ Lệnh '{cmd_name}' đang tạm thời bị khóa.")
+            elif cmd_name in ["!connapse", "!collapse"]:
+                print(dota_client.get_connapse_message())
+            elif cmd_name in ["!duo", "!hopvia", "!synergy"]:
+                print(dota_client.get_duo_message())
             elif cmd_name in ["!pro", "!pros"]:
                 print(dota_client.get_today_pros_message())
             elif cmd_name in ["!live"]:
@@ -98,6 +102,12 @@ def main():
     parser.add_argument("--cooldown", type=float, default=float(os.getenv("COMMAND_COOLDOWN", "20.0")), help="Thời gian hồi mỗi lệnh (giây)")
     parser.add_argument("--global-cooldown", type=float, default=float(os.getenv("GLOBAL_COOLDOWN", "10.0")), help="Thời gian hồi chung giữa mọi tin trả lời (giây)")
     parser.add_argument("--dedup-window", type=float, default=float(os.getenv("DEDUP_WINDOW_SECONDS", "60.0")), help="Trong bao nhiêu giây thì câu trả lời giống hệt lần trước sẽ bị bỏ qua (giây)")
+    parser.add_argument("--queue-mode", type=str, default=os.getenv("COMMAND_QUEUE_MODE", "auto"), choices=["auto", "fixed", "off"], help="Chế độ hàng đợi lệnh (auto, fixed, off)")
+    parser.add_argument("--queue-max", type=int, default=int(os.getenv("QUEUE_MAX_SIZE", "5")), help="Số lượng lệnh tối đa trong hàng đợi")
+    parser.add_argument("--queue-delay-normal", type=float, default=float(os.getenv("QUEUE_DELAY_NORMAL", "10.0")), help="Giãn cách bình thường khi quota nhiều (giây)")
+    parser.add_argument("--queue-delay-medium", type=float, default=float(os.getenv("QUEUE_DELAY_MEDIUM", "15.0")), help="Giãn cách khi quota trung bình (giây)")
+    parser.add_argument("--queue-delay-low", type=float, default=float(os.getenv("QUEUE_DELAY_LOW", "25.0")), help="Giãn cách khi quota gần cạn (giây)")
+    parser.add_argument("--queue-ttl", type=float, default=float(os.getenv("QUEUE_TTL_SECONDS", "90.0")), help="Thời gian tối đa lệnh được phép chờ trong hàng đợi (giây)")
     
     args = parser.parse_args()
 
@@ -158,7 +168,13 @@ def main():
         video_id=args.video_id,
         command_cooldown=args.cooldown,
         global_cooldown=args.global_cooldown,
-        dedup_window=args.dedup_window
+        dedup_window=args.dedup_window,
+        queue_mode=args.queue_mode,
+        queue_max_size=args.queue_max,
+        queue_delay_normal=args.queue_delay_normal,
+        queue_delay_medium=args.queue_delay_medium,
+        queue_delay_low=args.queue_delay_low,
+        queue_ttl=args.queue_ttl
     )
 
     bot.start_polling()
