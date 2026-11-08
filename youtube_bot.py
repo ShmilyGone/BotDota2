@@ -226,6 +226,8 @@ class YouTubeLiveChatBot:
             "!ditat": "!funfact",
             "!fact": "!funfact",
             "!collapse": "!connapse",
+            "!hopvia": "!duo",
+            "!synergy": "!duo",
             "!dongdoi": "!mate",
             "!ban": "!mate",
             "!dangdanh": "!live",
@@ -259,9 +261,13 @@ class YouTubeLiveChatBot:
             reply = self.dota.get_today_message()
         elif cmd_key in ["!rank"]:
             reply = self.dota.get_rank_message()
-        elif cmd_key in ["!streak", "!recent", "!heroes", "!mate", "!covy", "!connapse"]:
+        elif cmd_key in ["!streak", "!recent", "!heroes", "!mate", "!covy"]:
             logger.info(f"Lệnh '{cmd_key}' đang tạm thời bị khóa. Bỏ qua.")
             return None
+        elif cmd_key in ["!connapse", "!collapse"]:
+            reply = self.dota.get_connapse_message()
+        elif cmd_key in ["!duo", "!hopvia", "!synergy"]:
+            reply = self.dota.get_duo_message()
         elif cmd_key in ["!pro", "!pros"]:
             reply = self.dota.get_today_pros_message()
         elif cmd_key in ["!live"]:

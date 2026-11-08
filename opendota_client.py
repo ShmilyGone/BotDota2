@@ -1554,31 +1554,82 @@ class OpenDotaClient:
             logger.error(f"Lỗi trong get_funfact_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
+    def _get_connapse_matches(self) -> List[Dict[str, Any]]:
+        """Lấy danh sách các trận đấu giữa streamer và connapse từ OpenDota (có cache)."""
+        connapse_id = "968755756"
+        now = time.time()
+        if self._connapse_cache is not None and (now - self._connapse_cache_time < self.cache_ttl_connapse):
+            return self._connapse_cache
+
+        matches = self._api_get(f"players/{self.account_id}/matches", params={"included_account_id": connapse_id})
+        if isinstance(matches, list):
+            self._connapse_cache = matches
+            self._connapse_cache_time = now
+            return matches
+        return self._connapse_cache or []
+
     def get_connapse_message(self) -> str:
-        """Generate response for !connapse: funfact về cặp đôi streamer & tri kỷ connapse (Account ID: 968755756)."""
+        """Easter egg cho lệnh !connapse: Thống kê kết quả duo cùng connapse hôm nay và tổng sự nghiệp."""
         try:
             connapse_id = "968755756"
-            now = time.time()
-            if self._connapse_cache is not None and (now - self._connapse_cache_time < self.cache_ttl_connapse):
-                matches = self._connapse_cache
-            else:
-                matches = self._api_get(f"players/{self.account_id}/matches", params={"included_account_id": connapse_id})
-                if isinstance(matches, list):
-                    self._connapse_cache = matches
-                    self._connapse_cache_time = now
-                else:
-                    matches = self._connapse_cache or []
-
+            matches = self._get_connapse_matches()
             if not matches:
-                return "⚠️ Chưa tìm thấy lịch sử đấu chung với tri kỷ connapse trên OpenDota!"
+                return "🌸 Hôm nay streamer đơn độc leo rank, chưa thấy bóng dáng connapse."
 
-            with_games = 0
-            with_win = 0
+            same_team_matches = []
+            all_wins = 0
+            for m in matches:
+                my_slot = m.get("player_slot", 0)
+                my_radiant = my_slot < 128
+                radiant_win = m.get("radiant_win", False)
+                my_win = (radiant_win and my_radiant) or (not radiant_win and not my_radiant)
+
+                heroes_map = m.get("heroes") or {}
+                connapse_slot = None
+                for slot_str, p_info in heroes_map.items():
+                    if str(p_info.get("account_id")) == connapse_id:
+                        connapse_slot = int(slot_str)
+                        break
+
+                is_same_team = (connapse_slot is not None) and ((my_slot < 128) == (connapse_slot < 128))
+                if is_same_team:
+                    same_team_matches.append(m)
+                    if my_win:
+                        all_wins += 1
+
+            all_games = len(same_team_matches)
+            all_losses = all_games - all_wins
+
+            session_matches, date_str = self.get_current_stream_matches()
+            session_match_ids = {m.get("match_id") for m in session_matches if m.get("match_id")}
+            today_duo_matches = [m for m in same_team_matches if m.get("match_id") in session_match_ids]
+
+            if today_duo_matches:
+                today_games = len(today_duo_matches)
+                today_wins = sum(1 for m in today_duo_matches if self._is_win(m))
+                today_losses = today_games - today_wins
+                return (
+                    f"🌸 Ca hôm nay ({date_str}) duo cùng connapse: {today_games} trận ({today_wins}W - {today_losses}L) | "
+                    f"Tổng duo: {all_games} trận ({all_wins}W - {all_losses}L)."
+                )
+            else:
+                return f"🌸 Hôm nay streamer đơn độc leo rank, chưa thấy bóng dáng connapse. (Tổng duo: {all_games} trận, {all_wins}W - {all_losses}L)."
+        except Exception as e:
+            logger.error(f"Lỗi trong get_connapse_message: {e}", exc_info=True)
+            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+
+    def get_duo_message(self) -> str:
+        """Easter egg cho lệnh !duo: Chỉ số tâm đầu ý hợp và chỉ số nhường mạng giữa DH & connapse."""
+        try:
+            connapse_id = "968755756"
+            matches = self._get_connapse_matches()
+            if not matches:
+                return "⚠️ Chưa tìm thấy dữ liệu duo giữa DH và connapse trên OpenDota!"
+
+            same_team_matches = []
+            all_wins = 0
             streamer_kills = 0
-            streamer_deaths = 0
             streamer_assists = 0
-            total_sec = 0
-            connapse_heroes: Dict[int, int] = {}
 
             for m in matches:
                 my_slot = m.get("player_slot", 0)
@@ -1588,54 +1639,36 @@ class OpenDotaClient:
 
                 heroes_map = m.get("heroes") or {}
                 connapse_slot = None
-                connapse_hero = None
                 for slot_str, p_info in heroes_map.items():
                     if str(p_info.get("account_id")) == connapse_id:
                         connapse_slot = int(slot_str)
-                        connapse_hero = p_info.get("hero_id")
                         break
 
                 is_same_team = (connapse_slot is not None) and ((my_slot < 128) == (connapse_slot < 128))
                 if is_same_team:
-                    with_games += 1
+                    same_team_matches.append(m)
                     if my_win:
-                        with_win += 1
-                    total_sec += m.get("duration", 0)
+                        all_wins += 1
                     streamer_kills += m.get("kills", 0)
-                    streamer_deaths += m.get("deaths", 0)
                     streamer_assists += m.get("assists", 0)
-                    if connapse_hero:
-                        connapse_heroes[connapse_hero] = connapse_heroes.get(connapse_hero, 0) + 1
 
-            if with_games == 0:
-                return "⚠️ Chưa tìm thấy trận đấu chung team nào giữa streamer và connapse!"
+            all_games = len(same_team_matches)
+            if all_games == 0:
+                return "⚠️ Chưa tìm thấy trận đấu chung team nào giữa DH và connapse!"
 
-            hours = total_sec // 3600
-            minutes = (total_sec % 3600) // 60
-            wr = (with_win / max(1, with_games)) * 100.0
-            kp_avg = (streamer_kills + streamer_assists) / max(1, with_games)
+            wr = (all_wins / max(1, all_games)) * 100.0
+            kp_avg = (streamer_kills + streamer_assists) / max(1, all_games)
+            synergy = round(min(99.0, max(50.0, wr * 0.7 + (kp_avg / 30.0) * 30 + 17)))
+            connapse_nhuong = 89
+            dh_nhuong = 0
 
-            top_h = sorted(connapse_heroes.items(), key=lambda x: x[1], reverse=True)[:4]
-            top_h_str = ", ".join([f"{self.get_hero_short_name(h_id)} {cnt} trận" for h_id, cnt in top_h])
-
-            max_dur = max(m.get("duration", 0) for m in matches) // 60
-            min_dur = min(m.get("duration", 0) for m in matches) // 60
-
-            latest_ts = matches[0].get("start_time", 0)
-            latest_date = datetime.fromtimestamp(latest_ts, tz=self.tz).strftime("%d/%m")
-
-            facts = [
-                f"🤝 Tri kỷ connapse: {with_games} trận kề vai sát cánh ({hours}h{minutes:02d}p), 100% CÙNG PHE chưa từng đối đầu! Kết quả: {with_win}W - {with_games - with_win}L ({wr:.1f}%).",
-                f"🌸 connapse - Em gái quốc dân: Chuyên pick Support bảo kê ({top_h_str}) để streamer tha hồ múa lửa gánh team!",
-                f"🔥 Cặp đôi huỷ diệt: Trong {with_games} trận duo với connapse, streamer bỏ túi {streamer_kills} Kills & {streamer_assists} Assists (trung bình {kp_avg:.1f} mạng đóng góp/trận)!",
-                f"⏱️ Kỷ lục duo cùng connapse: Trận lầy lội nhất kéo dài {max_dur} phút kịch chiến, còn trận ngắn nhất kết thúc chóng vánh chỉ sau đúng {min_dur} phút!",
-                f"🍻 Tình đồng chí keo sơn: Cùng cày {hours}h{minutes:02d}p Dota 2, trận gần nhất vừa quẩy ngày {latest_date}! Dù winrate {wr:.1f}% nhưng tình cảm đồng đội không bao giờ rạn nứt."
-            ]
-
-            chosen_idx = self._draw_from_deck(self._connapse_deck, len(facts))
-            return facts[chosen_idx]
+            return (
+                f"💖 Cặp đôi DH & connapse: Tâm đầu ý hợp {synergy}% ({all_games} trận kề vai) | "
+                f"connapse nhường mạng {connapse_nhuong}% (Support chuẩn mực), "
+                f"DH nhường mạng {dh_nhuong}% (vét trọn {streamer_kills} mạng)!"
+            )
         except Exception as e:
-            logger.error(f"Lỗi trong get_connapse_message: {e}", exc_info=True)
+            logger.error(f"Lỗi trong get_duo_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_tworax_message(self) -> str:
