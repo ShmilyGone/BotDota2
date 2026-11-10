@@ -1028,21 +1028,17 @@ class OpenDotaClient:
         if not sessions:
             return [], ""
 
-        latest_m = sessions[0][0]
-        lat_ts = self._start_time_epoch(latest_m) or 0
-        lat_dur = latest_m.get("duration") or 0
-        time_since_latest = (now.timestamp() - (lat_ts + lat_dur)) / 3600.0
-        is_active = time_since_latest <= self.session_gap_hours
-
-        oldest_m_s0 = sessions[0][-1]
-        oldest_ts_s0 = self._start_time_epoch(oldest_m_s0) or 0
-
-        if is_active or oldest_ts_s0 >= today_start_ts or lat_ts >= today_start_ts:
+        today_matches, _ = self.get_current_stream_matches()
+        if today_matches:
+            # Hôm nay đang có ca stream (hoặc đã có ca stream bắt đầu từ hôm nay)
+            # -> Ca hôm trước là session liền trước (sessions[1])
             if len(sessions) > 1:
                 target_session = sessions[1]
             else:
                 return [], ""
         else:
+            # Hôm nay chưa có ca stream nào (streamer chưa lên sóng hôm nay)
+            # -> Ca hôm trước chính là session gần nhất vừa kết thúc (sessions[0])
             target_session = sessions[0]
 
         oldest_m = target_session[-1]
