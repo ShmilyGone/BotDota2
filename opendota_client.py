@@ -293,53 +293,7 @@ HERO_ALIASES = {
     "kez": 145
 }
 
-# 20 heroes streamer DH hay sử dụng nhất (tạm thời giới hạn tra cứu lệnh !hero)
-ALLOWED_HERO_IDS = {
-    52,   # Leshrac
-    2,    # Axe
-    17,   # Storm Spirit
-    106,  # Ember Spirit
-    46,   # Templar Assassin
-    55,   # Dark Seer
-    49,   # Dragon Knight
-    33,   # Enigma
-    35,   # Sniper
-    76,   # Outworld Destroyer / Devourer
-    93,   # Slark
-    15,   # Razor
-    34,   # Tinker
-    74,   # Invoker
-    10,   # Morphling
-    1,    # Anti-Mage
-    6,    # Drow Ranger
-    41,   # Faceless Void
-    8,    # Juggernaut
-    11,   # Shadow Fiend
-}
 
-# 20 Pro Player streamer DH hay gặp nhất (tạm thời giới hạn tra cứu lệnh !pro)
-ALLOWED_PRO_IDS = {
-    372105535,  # hunghung (Htz / bmk) - 742 trận
-    198631761,  # RedNTP - 673 trận
-    228517469,  # bombi - 583 trận
-    282359850,  # BEEBIE - 508 trận
-    100594231,  # skem - 442 trận
-    147767183,  # zeal - 419 trận
-    206642367,  # Ghost - 327 trận
-    100598959,  # Erice - 313 trận
-    392565237,  # JACKBOYS - 299 trận
-    156029808,  # Carlo - 286 trận
-    100616105,  # mavis - 278 trận
-    324277900,  # Yopaj- - 274 trận
-    148526973,  # Jaunuel - 269 trận
-    375507918,  # 23savage - 264 trận
-    219755398,  # Jîng - 261 trận
-    113435203,  # ChYuaN - 235 trận
-    173378701,  # Bob - 231 trận
-    193884241,  # ponlo - 229 trận
-    202217968,  # Emo - 221 trận
-    302214028,  # Collapse (Team Spirit)
-}
 
 ITEM_NAMES_D2PT = {
     1: "Blink", 41: "Bottle", 36: "Wand", 29: "Boots", 48: "PT", 50: "Phase", 180: "Arcane", 214: "Tranquil", 220: "BoT",
@@ -1456,7 +1410,7 @@ class OpenDotaClient:
                 # 100 trận gần nhất
                 c100 = Counter([m.get("hero_id") for m in matches_100 if m.get("hero_id")])
                 t100 = []
-                for hid, count in c100.most_common(3):
+                for hid, count in c100.most_common(4):
                     w = sum(1 for m in matches_100 if m.get("hero_id") == hid and self._is_win(m))
                     l = count - w
                     h_short = self.get_hero_short_name(hid)
@@ -1497,39 +1451,29 @@ class OpenDotaClient:
                 h_name = hero.get("localized_name") or f"Hero #{hid}"
                 h_short = self.get_hero_short_name(hid)
 
-                # Giới hạn Top 20 heroes hay chơi nhất, khóa các tướng còn lại
-                if hid not in ALLOWED_HERO_IDS:
+                matches_100 = self.get_player_recent_100_matches()
+                h100 = [m for m in matches_100 if m.get("hero_id") == hid]
+                g100 = len(h100)
+
+                # Giới hạn chỉ mở các tướng streamer có đánh trong 100 trận gần nhất
+                if g100 == 0:
                     return (
-                        f"⚠️ Tướng {h_short} đang tạm khóa. Chỉ mở Top 20 tướng tủ của DH "
-                        f"(vd: !hero storm, !hero lesh, !hero sf, !hero axe, !hero invo...). "
-                        f"Gõ !hero để xem tổng quan!"
+                        f"⚠️ DH không đánh {h_short} trong 100 trận gần nhất. "
+                        f"Hiện chỉ mở tra cứu tướng DH có đánh gần đây! Gõ !hero để xem tổng quan."
                     )
 
-                matches_100 = self.get_player_recent_100_matches()
                 m25 = matches_100[:25]
-
                 h25 = [m for m in m25 if m.get("hero_id") == hid]
                 g25 = len(h25)
                 w25 = sum(1 for m in h25 if self._is_win(m))
                 l25 = g25 - w25
 
-                h100 = [m for m in matches_100 if m.get("hero_id") == hid]
-                g100 = len(h100)
                 w100 = sum(1 for m in h100 if self._is_win(m))
                 l100 = g100 - w100
                 wr100 = (w100 / g100 * 100) if g100 else 0
 
-                if g100 > 0:
-                    stat_str = f"25 trận: {g25} trận ({w25}W-{l25}L)" if g25 else "25 trận: 0 trận"
-                    stat_str += f" | 100 trận: {g100} trận ({w100}W-{l100}L, {wr100:.0f}%)"
-                else:
-                    all_time = self.get_player_heroes_all().get(hid, {})
-                    tot_g = all_time.get("games", 0)
-                    tot_w = all_time.get("win", 0)
-                    tot_wr = (tot_w / tot_g * 100) if tot_g else 0
-                    stat_str = "Chưa pick trong 100 trận gần nhất"
-                    if tot_g > 0:
-                        stat_str += f" (Sự nghiệp: {tot_g} trận, {tot_wr:.0f}%)"
+                stat_str = f"25 trận: {g25} trận ({w25}W-{l25}L)" if g25 else "25 trận: 0 trận"
+                stat_str += f" | 100 trận: {g100} trận ({w100}W-{l100}L, {wr100:.0f}%)"
 
                 # Phân tích Trending Meta
                 hero_stats = self.get_hero_stats()
@@ -2262,11 +2206,11 @@ class OpenDotaClient:
             }
 
             if not query or not query.strip():
-                top_pros = sorted(pros, key=lambda x: x.get("games", 0), reverse=True)[:4]
-                items = [f"{custom_display_names.get(p.get('account_id'), p.get('name'))} ({p.get('games')} trận)" for p in top_pros if p.get("name")]
+                top_pros = sorted(pros, key=lambda x: x.get("games", 0), reverse=True)[:3]
+                items = [f"{custom_display_names.get(p.get('account_id'), p.get('name'))} ({p.get('games')})" for p in top_pros if p.get("name")]
                 return (
-                    f"🏆 Top Pro hay gặp: hunghung (742 trận), {', '.join(items)}... "
-                    "Gõ '!pro <tên>' (vd: !pro hunghung, !pro 23savage, !pro paparazi, !pro tianming) để xem tỉ lệ đối đầu!"
+                    f"🏆 Top Pro hay gặp: hunghung (742), {', '.join(items)}... "
+                    "Soi: !pro <tên> (vd: !pro 23savage, !pro hunghung, !pro skem)"
                 )
 
             q_raw = query.strip().lower()
@@ -2296,12 +2240,6 @@ class OpenDotaClient:
 
             if q_clean in CUSTOM_EXTRA_PROS:
                 aid, display_name, team_tag = CUSTOM_EXTRA_PROS[q_clean]
-                if aid not in ALLOWED_PRO_IDS:
-                    return (
-                        f"⚠️ Tuyển thủ '{display_name}' đang tạm thời bị khóa. Hiện chỉ mở tra cứu "
-                        f"Top 20 Pro DH hay gặp nhất (vd: !pro hunghung, !pro 23savage, !pro skem, !pro yopaj...). "
-                        f"Gõ !pro để xem danh sách!"
-                    )
                 stats = self.get_custom_pro_stats(aid)
                 if stats and stats.get("games", 0) > 0:
                     tot_g = stats["games"]
@@ -2360,11 +2298,7 @@ class OpenDotaClient:
             }
 
             if q_clean in UNMET_PRO_EXPLANATIONS:
-                return (
-                    f"⚠️ Tuyển thủ '{query.strip()}' đang tạm thời bị khóa. Hiện chỉ mở tra cứu "
-                    f"Top 20 Pro DH hay gặp nhất (vd: !pro hunghung, !pro 23savage, !pro skem, !pro yopaj...). "
-                    f"Gõ !pro để xem danh sách!"
-                )
+                return UNMET_PRO_EXPLANATIONS[q_clean]
 
             # 2. Ánh xạ alias trực tiếp sang account_id cho các Pro Trung Quốc / có ký tự chữ Hán / ký tự lạ
             PRO_ACCOUNT_MAP = {
@@ -2582,14 +2516,6 @@ class OpenDotaClient:
             matched_id = matched.get("account_id")
             has_custom = matched_id in custom_display_names
             p_name = custom_display_names.get(matched_id) or matched.get("name") or matched.get("personaname")
-
-            # Giới hạn Top 20 Pro streamer hay gặp nhất, khóa các tuyển thủ còn lại
-            if matched_id not in ALLOWED_PRO_IDS:
-                return (
-                    f"⚠️ Tuyển thủ '{p_name}' đang tạm thời bị khóa. Hiện chỉ mở tra cứu "
-                    f"Top 20 Pro DH hay gặp nhất (vd: !pro hunghung, !pro 23savage, !pro skem, !pro yopaj...). "
-                    f"Gõ !pro để xem danh sách!"
-                )
 
             tag = f" ({matched['team_tag']})" if (matched.get("team_tag") and not has_custom) else ""
             tot_g = matched.get("games", 0)
