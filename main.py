@@ -34,7 +34,9 @@ def run_terminal_test(dota_client: OpenDotaClient):
     print("  !rank      - Rank hiện tại (kèm % thế giới)")
     print("  !streak    - Chuỗi thắng/thua hiện tại")
     print("  !recent    - Kết quả 10 trận gần nhất")
-    print("  !heroes    - Tướng tủ trong 100 trận gần nhất")
+    print("  !hero [tên]- Tướng hay đánh 25/100 trận (W-L) & Trending Meta (vd: !hero storm, !hero)")
+    print("  !dh        - Thông tin tiểu sử streamer DH (458 / Thocac)")
+    print("  !pro [tên] - Pro player gặp hôm nay / đối đầu pro player cụ thể (vd: !pro 23savage)")
     print("  !mate      - Hay duo với ai trong 100 trận gần nhất")
     print("  !live      - Trận đang diễn ra của streamer")
     print("  !career    - Tổng quan toàn bộ sự nghiệp Dota 2")
@@ -62,14 +64,21 @@ def run_terminal_test(dota_client: OpenDotaClient):
                 print(dota_client.get_last_message())
             elif cmd_name in ["!rank"]:
                 print(dota_client.get_rank_message())
-            elif cmd_name in ["!streak", "!chuoi", "!recent", "!5tran", "!heroes", "!besthero", "!mate", "!covy", "!vy", "!hanvy", "!leminhhanvy"]:
+            elif cmd_name in ["!streak", "!chuoi", "!recent", "!5tran", "!mate", "!covy", "!vy", "!hanvy", "!leminhhanvy"]:
                 print(f"⚠️ Lệnh '{cmd_name}' đang tạm thời bị khóa.")
             elif cmd_name in ["!connapse", "!collapse"]:
                 print(dota_client.get_connapse_message())
             elif cmd_name in ["!duo", "!hopvia", "!synergy"]:
                 print(dota_client.get_duo_message())
+            elif cmd_name in ["!dh", "!458", "!thocac"]:
+                print(dota_client.get_dh_message())
+            elif cmd_name in ["!hero", "!heroes", "!meta", "!trending", "!besthero"]:
+                print(dota_client.get_hero_message(arg))
             elif cmd_name in ["!pro", "!pros"]:
-                print(dota_client.get_today_pros_message())
+                if arg:
+                    print(dota_client.get_pro_message(arg))
+                else:
+                    print(dota_client.get_today_pros_message())
             elif cmd_name in ["!live"]:
                 print(dota_client.get_live_message())
             elif cmd_name in ["!career", "!totals"]:
@@ -81,7 +90,7 @@ def run_terminal_test(dota_client: OpenDotaClient):
                 p = AccountPool()
                 print(p.get_quota_chat_message())
             elif cmd_name in ["!help", "!lenh"]:
-                print("📜 Lệnh: !today, !last, !rank, !live, !pro, !career, !funfact. ⏱️ Chờ 10s giữa các lệnh, 1p nếu lặp lại cùng 1 lệnh. Bot chưa kịp rep hãy gõ lại nhé! Gõ !quota để kiểm tra số tin còn lại của BOT.")
+                print("📜 Lệnh: !today, !last, !rank, !hero, !dh, !live, !pro, !career, !funfact. ⏱️ Chờ 10s giữa các lệnh, 1p nếu lặp lại. Chưa kịp rep hãy gõ lại nhé! Gõ !quota để kiểm tra quota của BOT.")
             else:
                 print(f"❓ Không nhận diện được lệnh '{cmd}'. Thử: !today, !rank, !career, !funfact, !connapse")
         except (KeyboardInterrupt, EOFError):

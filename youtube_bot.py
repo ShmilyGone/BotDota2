@@ -155,7 +155,12 @@ class YouTubeLiveChatBot:
         "!chuoi": "!streak",
         "!5tran": "!recent",
         "!10tran": "!recent",
-        "!besthero": "!heroes",
+        "!besthero": "!hero",
+        "!heroes": "!hero",
+        "!meta": "!hero",
+        "!trending": "!hero",
+        "!458": "!dh",
+        "!thocac": "!dh",
         "!totals": "!career",
         "!sunghiep": "!career",
         "!su-nghiep": "!career",
@@ -175,12 +180,13 @@ class YouTubeLiveChatBot:
         "!leminhhanvy": "!covy",
     }
 
-    LOCKED_COMMANDS = {"!streak", "!recent", "!heroes", "!mate", "!covy"}
+    LOCKED_COMMANDS = {"!streak", "!recent", "!mate", "!covy"}
 
     SUPPORTED_COMMANDS = {
-        "!today", "!rank", "!pro", "!pros", "!live", "!career",
-        "!funfact", "!quota", "!2rax", "!tnc", "!2raxtnc", "!dieback",
-        "!last", "!help", "!connapse", "!duo"
+        "!today", "!rank", "!pro", "!pros", "!hero", "!heroes", "!meta", "!trending",
+        "!dh", "!458", "!thocac",
+        "!live", "!career", "!funfact", "!quota", "!2rax", "!tnc", "!2raxtnc",
+        "!dieback", "!last", "!help", "!connapse", "!duo"
     }
 
     def __init__(
@@ -314,7 +320,13 @@ class YouTubeLiveChatBot:
                 return self.dota.get_today_message()
             elif cmd_key in ["!rank"]:
                 return self.dota.get_rank_message()
+            elif cmd_key in ["!dh", "!458", "!thocac"]:
+                return self.dota.get_dh_message()
+            elif cmd_key in ["!hero", "!heroes", "!meta", "!trending", "!besthero"]:
+                return self.dota.get_hero_message(arg)
             elif cmd_key in ["!pro", "!pros"]:
+                if arg:
+                    return self.dota.get_pro_message(arg)
                 return self.dota.get_today_pros_message()
             elif cmd_key in ["!live"]:
                 return self.dota.get_live_message()
@@ -336,9 +348,9 @@ class YouTubeLiveChatBot:
                 return self.dota.get_duo_message()
             elif cmd_key in ["!help"]:
                 return (
-                    "📜 Lệnh: !today, !last, !rank, !live, !pro, !career, !funfact. "
-                    "⏱️ Chờ 10s giữa các lệnh, 1p nếu lặp lại cùng 1 lệnh. "
-                    "Bot chưa kịp rep hãy gõ lại nhé! Gõ !quota để kiểm tra số tin còn lại của BOT."
+                    "📜 Lệnh: !today, !last, !rank, !hero, !dh, !live, !pro, !career, !funfact. "
+                    "⏱️ Chờ 10s giữa các lệnh, 1p nếu lặp lại. "
+                    "Chưa kịp rep hãy gõ lại nhé! Gõ !quota để kiểm tra quota của BOT."
                 )
         except Exception as e:
             logger.error(f"Lỗi khi thực thi lệnh '{cmd_key}': {e}", exc_info=True)
@@ -369,10 +381,11 @@ class YouTubeLiveChatBot:
         now = time.time()
 
         # Kiểm tra dedup: Nếu lệnh vừa được gửi trong dedup_window, bỏ qua để tránh spam trùng lặp
-        if (now - self.last_reply_time.get(cmd_key, 0) < self.dedup_window):
-            wait_left = self.dedup_window - (now - self.last_reply_time[cmd_key])
+        dedup_key = f"{cmd_key}:{arg.lower()}" if arg else cmd_key
+        if (now - self.last_reply_time.get(dedup_key, 0) < self.dedup_window):
+            wait_left = self.dedup_window - (now - self.last_reply_time[dedup_key])
             logger.info(
-                f"Lệnh '{cmd_key}' vừa được trả lời cách đây {(now - self.last_reply_time[cmd_key]):.1f}s "
+                f"Lệnh '{dedup_key}' vừa được trả lời cách đây {(now - self.last_reply_time[dedup_key]):.1f}s "
                 f"(còn {wait_left:.1f}s dedup cooldown). Bỏ qua trùng lặp."
             )
             return False
@@ -443,23 +456,24 @@ class YouTubeLiveChatBot:
         if not reply:
             return
 
+        dedup_key = f"{cmd_key}:{arg.lower()}" if arg else cmd_key
         # Kiểm tra dedup lần cuối trước khi gửi (trường hợp cùng nội dung)
         if (
-            self.last_reply.get(cmd_key) == reply
-            and now - self.last_reply_time.get(cmd_key, 0) < self.dedup_window
+            self.last_reply.get(dedup_key) == reply
+            and now - self.last_reply_time.get(dedup_key, 0) < self.dedup_window
         ):
-            logger.info(f"Lệnh '{cmd_key}' trả về nội dung giống lần trước (trong {self.dedup_window:.0f}s), bỏ qua để tiết kiệm quota.")
+            logger.info(f"Lệnh '{dedup_key}' trả về nội dung giống lần trước (trong {self.dedup_window:.0f}s), bỏ qua để tiết kiệm quota.")
             self.last_command_time[cmd_key] = now
             return
 
         success = self.send_chat_message(reply)
         if success:
-            self.last_reply[cmd_key] = reply
-            self.last_reply_time[cmd_key] = now
+            self.last_reply[dedup_key] = reply
+            self.last_reply_time[dedup_key] = now
             self.last_command_time[cmd_key] = now
             with self.queue_lock:
                 q_left = len(self.command_queue)
-            logger.info(f"🚀 [QUEUE] Đã trả lời lệnh '{cmd_key}' cho [{author_name}] thành công! (Còn lại trong queue: {q_left} lệnh).")
+            logger.info(f"🚀 [QUEUE] Đã trả lời lệnh '{dedup_key}' cho [{author_name}] thành công! (Còn lại trong queue: {q_left} lệnh).")
 
     def _start_queue_worker(self):
         """Khởi chạy worker thread xử lý hàng đợi lệnh ngầm."""

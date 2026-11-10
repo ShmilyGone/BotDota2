@@ -163,6 +163,184 @@ HERO_ABBREVIATIONS = {
     "Kez": "Kez"
 }
 
+# Bảng tra cứu alias thông dụng của tướng (tên viết tắt, biệt danh Dota 1 & cộng đồng)
+HERO_ALIASES = {
+    "am": 1, "antimage": 1, "magina": 1,
+    "axe": 2, "mogul": 2, "mogulkahn": 2,
+    "bane": 3, "atropus": 3,
+    "bs": 4, "blood": 4, "bloodseeker": 4, "strygwyr": 4,
+    "cm": 5, "crystal": 5, "rylai": 5, "crystalmaiden": 5,
+    "drow": 6, "traxex": 6, "dr": 6, "drowranger": 6,
+    "es": 7, "shaker": 7, "earthshaker": 7, "bo": 7,
+    "jugg": 8, "juggernaut": 8, "yurnero": 8,
+    "mirana": 9, "potm": 9, "tiger": 9,
+    "morph": 10, "morphling": 10,
+    "sf": 11, "nevermore": 11, "shadowfiend": 11,
+    "pl": 12, "phantomlancer": 12, "azwraith": 12,
+    "puck": 13, "faerie": 13,
+    "pudge": 14, "butcher": 14, "map": 14,
+    "razor": 15,
+    "sk": 16, "sandking": 16, "crixalis": 16,
+    "storm": 17, "ss": 17, "stormspirit": 17, "raijin": 17,
+    "sven": 18, "rogue": 18,
+    "tiny": 19, "da": 19,
+    "venge": 20, "vs": 20, "vengeful": 20, "vengefulspirit": 20,
+    "wr": 21, "wind": 21, "windranger": 21, "windrunner": 21, "lyralei": 21,
+    "zeus": 22,
+    "kunkka": 23, "admiral": 23,
+    "lina": 25, "slayer": 25,
+    "lion": 26, "demonwitch": 26,
+    "shaman": 27, "rhasta": 27, "shadowshaman": 27,
+    "slardar": 28, "ca": 28,
+    "tide": 29, "tidehunter": 29, "leviathan": 29,
+    "wd": 30, "witchdoctor": 30, "voodoo": 30,
+    "lich": 31, "ethreain": 31,
+    "riki": 32, "sa": 32, "stealthassassin": 32,
+    "enigma": 33,
+    "tinker": 34, "boush": 34,
+    "sniper": 35, "kardel": 35,
+    "necro": 36, "necrophos": 36, "necrolyte": 36,
+    "warlock": 37, "demnok": 37,
+    "bm": 38, "beastmaster": 38, "karroch": 38,
+    "qop": 39, "queenofpain": 39, "akasha": 39,
+    "veno": 40, "venomancer": 40, "lesale": 40,
+    "void": 41, "fv": 41, "faceless": 41, "facelessvoid": 41, "darkterror": 41,
+    "wk": 42, "snk": 42, "skeletonking": 42, "wraithking": 42, "leoric": 42,
+    "dp": 43, "deathprophet": 43, "krobelus": 43,
+    "pa": 44, "mortred": 44, "phantomassassin": 44,
+    "pugna": 45, "oblivion": 45,
+    "ta": 46, "lanaya": 46, "templar": 46, "templarassassin": 46,
+    "viper": 47, "netherdrake": 47,
+    "luna": 48, "moonfang": 48,
+    "dk": 49, "dragonknight": 49, "davion": 49,
+    "dazzle": 50, "shadowpriest": 50,
+    "clock": 51, "clockwerk": 51, "rattletrap": 51,
+    "lesh": 52, "leshrac": 52, "malicious": 52, "ngua": 52,
+    "np": 53, "furion": 53, "prophet": 53, "natureprophet": 53, "naturesprophet": 53,
+    "ls": 54, "naix": 54, "lifestealer": 54,
+    "ds": 55, "darkseer": 55, "ishir": 55,
+    "clinkz": 56, "bone": 56,
+    "omni": 57, "omniknight": 57, "purist": 57,
+    "ench": 58, "enchantress": 58, "aiushtha": 58,
+    "huskar": 59,
+    "ns": 60, "nightstalker": 60, "balanar": 60,
+    "brood": 61, "broodmother": 61, "nhen": 61,
+    "bh": 62, "gondar": 62, "bounty": 62, "bountyhunter": 62,
+    "weaver": 63, "anubseran": 63,
+    "jakiro": 64, "thd": 64,
+    "bat": 65, "batrider": 65,
+    "chen": 66,
+    "spec": 67, "spectre": 67, "mercurial": 67,
+    "aa": 68, "ancientapparition": 68, "kaldr": 68,
+    "doom": 69, "doombringer": 69,
+    "ursa": 70, "gau": 70, "ulfsaar": 70,
+    "sb": 71, "bara": 71, "spiritbreaker": 71, "barathrum": 71,
+    "gyro": 72, "gyrocopter": 72,
+    "alche": 73, "alchemist": 73, "razzil": 73,
+    "invo": 74, "invoker": 74, "kael": 74, "karl": 74,
+    "silencer": 75, "nortrom": 75,
+    "od": 76, "outworld": 76, "outworlddestroyer": 76, "outworlddevourer": 76, "harbinger": 76,
+    "lycan": 77, "soi": 77,
+    "brew": 78, "brewmaster": 78, "panda": 78, "mangix": 78,
+    "sd": 79, "shadowdemon": 79, "eredar": 79,
+    "ld": 80, "sylla": 80, "lonedruid": 80, "bear": 80,
+    "ck": 81, "chaosknight": 81, "nessaj": 81,
+    "meepo": 82, "geomancer": 82,
+    "treant": 83, "caynha": 83, "treantprotector": 83, "roof": 83,
+    "ogre": 84, "ogremagi": 84, "aggron": 84,
+    "undying": 85, "dirge": 85,
+    "rubick": 86, "grandmagus": 86,
+    "disruptor": 87, "thrall": 87,
+    "nyx": 88, "nyxassassin": 88, "anubarak": 88,
+    "naga": 89, "nagasiren": 89, "slithice": 89,
+    "kotl": 90, "keeper": 90, "keeperofthelight": 90, "ezalor": 90, "sankhau": 90, "ga": 90,
+    "io": 91, "wisp": 91,
+    "visage": 92, "necrolic": 92,
+    "slark": 93,
+    "dusa": 94, "medusa": 94, "gorgon": 94,
+    "troll": 95, "trollwarlord": 95, "jahrakal": 95,
+    "centaur": 96, "bradwarden": 96,
+    "mag": 97, "magnus": 97,
+    "timber": 98, "timbersaw": 98, "rizzrack": 98,
+    "bb": 99, "bristleback": 99, "rigwarl": 99, "heo": 99,
+    "tusk": 100, "ymir": 100, "tuskarr": 100,
+    "sky": 101, "skywrath": 101, "skywrathmage": 101, "dragonus": 101,
+    "abaddon": 102, "avernus": 102,
+    "et": 103, "eldertitan": 103,
+    "lc": 104, "legion": 104, "legioncommander": 104, "tresdin": 104,
+    "techies": 105, "squee": 105,
+    "ember": 106, "emberspirit": 106, "xin": 106,
+    "earthspirit": 107, "kaolin": 107,
+    "underlord": 108, "pitlord": 108, "azgalor": 108,
+    "tb": 109, "terrorblade": 109, "soulkeeper": 109,
+    "phoenix": 110, "icarus": 110,
+    "oracle": 111, "nerif": 111,
+    "ww": 112, "winterwyvern": 112, "auroth": 112,
+    "arc": 113, "arcwarden": 113, "zet": 113,
+    "mk": 114, "monkeyking": 114, "wukong": 114,
+    "willow": 119, "darkwillow": 119, "mireska": 119,
+    "pango": 120, "pangolier": 120, "dontu": 120,
+    "grim": 121, "grimstroke": 121,
+    "hoodwink": 123, "soc": 123,
+    "voidspirit": 126, "inai": 126,
+    "snap": 128, "snapfire": 128, "beatrix": 128,
+    "mars": 129,
+    "dawn": 135, "dawnbreaker": 135, "valora": 135,
+    "marci": 136,
+    "pb": 137, "primalbeast": 137, "thu": 137,
+    "muerta": 138,
+    "ringmaster": 131, "colet": 131,
+    "kez": 145
+}
+
+# 20 heroes streamer DH hay sử dụng nhất (tạm thời giới hạn tra cứu lệnh !hero)
+ALLOWED_HERO_IDS = {
+    52,   # Leshrac
+    2,    # Axe
+    17,   # Storm Spirit
+    106,  # Ember Spirit
+    46,   # Templar Assassin
+    55,   # Dark Seer
+    49,   # Dragon Knight
+    33,   # Enigma
+    35,   # Sniper
+    76,   # Outworld Destroyer / Devourer
+    93,   # Slark
+    15,   # Razor
+    34,   # Tinker
+    74,   # Invoker
+    10,   # Morphling
+    1,    # Anti-Mage
+    6,    # Drow Ranger
+    41,   # Faceless Void
+    8,    # Juggernaut
+    11,   # Shadow Fiend
+}
+
+# 20 Pro Player streamer DH hay gặp nhất (tạm thời giới hạn tra cứu lệnh !pro)
+ALLOWED_PRO_IDS = {
+    372105535,  # hunghung (Htz / bmk) - 742 trận
+    198631761,  # RedNTP - 673 trận
+    228517469,  # bombi - 583 trận
+    282359850,  # BEEBIE - 508 trận
+    100594231,  # skem - 442 trận
+    147767183,  # zeal - 419 trận
+    206642367,  # Ghost - 327 trận
+    100598959,  # Erice - 313 trận
+    392565237,  # JACKBOYS - 299 trận
+    156029808,  # Carlo - 286 trận
+    100616105,  # mavis - 278 trận
+    324277900,  # Yopaj- - 274 trận
+    148526973,  # Jaunuel - 269 trận
+    375507918,  # 23savage - 264 trận
+    219755398,  # Jîng - 261 trận
+    113435203,  # ChYuaN - 235 trận
+    173378701,  # Bob - 231 trận
+    193884241,  # ponlo - 229 trận
+    202217968,  # Emo - 221 trận
+    302214028,  # Collapse (Team Spirit)
+}
+
 ITEM_NAMES_D2PT = {
     1: "Blink", 41: "Bottle", 36: "Wand", 29: "Boots", 48: "PT", 50: "Phase", 180: "Arcane", 214: "Tranquil", 220: "BoT",
     259: "Kaya", 277: "Bloodstone", 116: "BKB", 609: "Shard", 96: "Shiva", 108: "Aghanim", 114: "Heart", 139: "Butterfly",
@@ -251,6 +429,17 @@ class OpenDotaClient:
         self._custom_pro_cache_time: Dict[int, float] = {}
         self.cache_ttl_custom_pro = 86400.0  # 24 hours
         
+        # Cache cho Hero Stats & Trending
+        self.cache_ttl_hero_stats = 1800.0   # 30 minutes
+        self.cache_ttl_matches_100 = 60.0    # 60 seconds
+        self.cache_ttl_player_heroes_all = 86400.0 # 24 hours
+        self._hero_stats_cache: Optional[List[Dict[str, Any]]] = None
+        self._hero_stats_cache_time = 0.0
+        self._player_matches_100_cache: Optional[List[Dict[str, Any]]] = None
+        self._player_matches_100_cache_time = 0.0
+        self._player_heroes_all_cache: Optional[Dict[int, Dict[str, Any]]] = None
+        self._player_heroes_all_cache_time = 0.0
+        
         # Cache thống kê Dieback lưu trữ local
         self.dieback_cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dieback_cache.json")
         self._dieback_cache: Dict[str, Any] = self._load_dieback_cache()
@@ -296,6 +485,106 @@ class OpenDotaClient:
         """Get common community abbreviation for hero name (e.g. Outworld Devourer -> OD, Templar Assassin -> TA)."""
         full_name = self.get_hero_name(hero_id)
         return HERO_ABBREVIATIONS.get(full_name, full_name)
+
+    def get_hero_stats(self) -> List[Dict[str, Any]]:
+        """Lấy danh sách thống kê toàn bộ tướng (pro picks, bans, winrate, pub trends) từ /heroStats, cached 30p."""
+        now = time.time()
+        if self._hero_stats_cache and (now - self._hero_stats_cache_time < self.cache_ttl_hero_stats):
+            return self._hero_stats_cache
+        try:
+            data = self._api_get("heroStats")
+            if isinstance(data, list):
+                self._hero_stats_cache = data
+                self._hero_stats_cache_time = now
+                return data
+        except Exception as e:
+            logger.warning(f"Lỗi khi lấy heroStats từ OpenDota: {e}")
+            if self._hero_stats_cache:
+                return self._hero_stats_cache
+        return []
+
+    def get_player_recent_100_matches(self) -> List[Dict[str, Any]]:
+        """Lấy 100 trận gần nhất của người chơi từ OpenDota, cached 60s."""
+        now = time.time()
+        if self._player_matches_100_cache and (now - self._player_matches_100_cache_time < self.cache_ttl_matches_100):
+            return self._player_matches_100_cache
+        try:
+            data = self._api_get(f"players/{self.account_id}/matches", params={"limit": 100})
+            if isinstance(data, list):
+                self._player_matches_100_cache = data
+                self._player_matches_100_cache_time = now
+                return data
+        except Exception as e:
+            logger.warning(f"Lỗi khi lấy 100 trận gần nhất từ OpenDota: {e}")
+            if self._player_matches_100_cache:
+                return self._player_matches_100_cache
+        return []
+
+    def get_player_heroes_all(self) -> Dict[int, Dict[str, Any]]:
+        """Lấy thống kê cả đời theo tướng của người chơi từ /players/{id}/heroes, cached 24h."""
+        now = time.time()
+        if self._player_heroes_all_cache and (now - self._player_heroes_all_cache_time < self.cache_ttl_player_heroes_all):
+            return self._player_heroes_all_cache
+        try:
+            data = self._api_get(f"players/{self.account_id}/heroes")
+            if isinstance(data, list):
+                result = {int(h.get("hero_id")): h for h in data if h.get("hero_id")}
+                self._player_heroes_all_cache = result
+                self._player_heroes_all_cache_time = now
+                return result
+        except Exception as e:
+            logger.warning(f"Lỗi khi lấy danh sách heroes all-time từ OpenDota: {e}")
+            if self._player_heroes_all_cache:
+                return self._player_heroes_all_cache
+        return {}
+
+    def find_hero(self, query: str) -> Optional[Dict[str, Any]]:
+        """Tìm tướng theo tên, viết tắt, alias hoặc ID."""
+        if not query:
+            return None
+        q_raw = query.strip().lower()
+        q_clean = re.sub(r"[^a-z0-9]", "", q_raw)
+        if not q_clean:
+            return None
+
+        hero_stats = self.get_hero_stats()
+        if not hero_stats:
+            return None
+
+        hero_by_id = {h["id"]: h for h in hero_stats}
+
+        # 1. Alias trực tiếp từ bảng HERO_ALIASES
+        if q_clean in HERO_ALIASES:
+            hid = HERO_ALIASES[q_clean]
+            if hid in hero_by_id:
+                return hero_by_id[hid]
+
+        # 2. Khớp theo HERO_ABBREVIATIONS
+        for full_name, abbr in HERO_ABBREVIATIONS.items():
+            if q_clean == re.sub(r"[^a-z0-9]", "", abbr.lower()):
+                for h in hero_stats:
+                    if h.get("localized_name") == full_name:
+                        return h
+
+        # 3. Khớp chính xác localized_name
+        for h in hero_stats:
+            c_name = re.sub(r"[^a-z0-9]", "", (h.get("localized_name") or "").lower())
+            if c_name == q_clean:
+                return h
+
+        # 4. Khớp prefix (bắt đầu bằng)
+        for h in hero_stats:
+            c_name = re.sub(r"[^a-z0-9]", "", (h.get("localized_name") or "").lower())
+            if c_name.startswith(q_clean):
+                return h
+
+        # 5. Khớp substring (chuỗi con)
+        for h in hero_stats:
+            c_name = re.sub(r"[^a-z0-9]", "", (h.get("localized_name") or "").lower())
+            if q_clean in c_name:
+                return h
+
+        return None
 
     def get_player_data(self, force_refresh: bool = False) -> Dict[str, Any]:
         """Fetch player profile and rank with stale cache fallback."""
@@ -1139,28 +1428,142 @@ class OpenDotaClient:
                 return self._player_heroes_cache
         return []
 
-    def get_heroes_message(self) -> str:
-        """Generate response for !heroes / !besthero: tướng tủ trong 100 trận gần nhất."""
+    def get_dh_message(self) -> str:
+        """Thông tin tiểu sử về streamer DH (458 / Thocac)."""
+        return (
+            "🍳🍳🍳🍳 458 (DH QUY hay Thocac) tên thật Trịnh Văn Thọ (sinh năm 1996), "
+            "carry Việt Nam, từng đánh cho 496 Gaming, TNC Tigers & SPAWN. "
+            "Danh hiệu lớn nhất là vô địch OB.Moon Asian Arena 2021, giải $20.000."
+        )
+
+    def get_hero_message(self, query: Optional[str] = None) -> str:
+        """Thống kê tướng của streamer trong 25 & 100 trận gần nhất kèm phân tích Trending Pro Meta."""
         try:
-            heroes = self.get_player_heroes()
-            if not heroes:
-                return "⚠️ Không lấy được thống kê tướng, bạn vui lòng thử lại sau vài giây!"
+            if not query or not query.strip():
+                matches_100 = self.get_player_recent_100_matches()
+                hero_stats = self.get_hero_stats()
+                
+                # 25 trận gần nhất
+                m25 = matches_100[:25]
+                c25 = Counter([m.get("hero_id") for m in m25 if m.get("hero_id")])
+                t25 = []
+                for hid, count in c25.most_common(3):
+                    w = sum(1 for m in m25 if m.get("hero_id") == hid and self._is_win(m))
+                    l = count - w
+                    h_short = self.get_hero_short_name(hid)
+                    t25.append(f"{h_short} ({w}W-{l}L)")
 
-            played = [h for h in heroes if (h.get("games") or 0) > 0]
-            if not played:
-                return "⚠️ Không lấy được thống kê tướng, bạn vui lòng thử lại sau vài giây!"
+                # 100 trận gần nhất
+                c100 = Counter([m.get("hero_id") for m in matches_100 if m.get("hero_id")])
+                t100 = []
+                for hid, count in c100.most_common(3):
+                    w = sum(1 for m in matches_100 if m.get("hero_id") == hid and self._is_win(m))
+                    l = count - w
+                    h_short = self.get_hero_short_name(hid)
+                    t100.append(f"{h_short} ({w}W-{l}L)")
 
-            top = sorted(played, key=lambda h: h.get("games", 0), reverse=True)[:3]
-            parts = []
-            for h in top:
-                games = h.get("games", 0)
-                wins = h.get("win", 0)
-                wr = (wins / games * 100) if games else 0
-                parts.append(f"{self.get_hero_short_name(h.get('hero_id', 0))} ({games} trận, {wr:.0f}%)")
-            return "🏆 Tướng tủ (100 trận gần nhất): " + " | ".join(parts)
+                # Top trending pro meta (tổng pick + ban cao nhất)
+                by_contest = sorted(hero_stats, key=lambda h: (h.get("pro_pick", 0) + h.get("pro_ban", 0)), reverse=True)
+                hot = [self.get_hero_short_name(h.get("id")) for h in by_contest[:3]]
+
+                t25_str = ", ".join(t25) if t25 else "Chưa có"
+                t100_str = ", ".join(t100) if t100 else "Chưa có"
+                hot_str = ", ".join(hot) if hot else "Chưa có"
+
+                msg = f"🌟 Tướng DH: 25 trận: {t25_str} | 100 trận: {t100_str} | 🔥 Hot Meta: {hot_str}. Soi: !hero <tên>"
+                if len(msg) > 195:
+                    msg = f"🌟 DH: 25 trận: {t25_str} | 100 trận: {t100_str} | 🔥 Meta: {hot_str}. Soi: !hero <tên>"
+                return msg
+
+            q_raw = query.strip().lower()
+            q_clean = re.sub(r"[^a-z0-9]", "", q_raw)
+
+            if q_clean in ["trending", "meta", "hot"]:
+                hero_stats = self.get_hero_stats()
+                by_contest = sorted(hero_stats, key=lambda h: (h.get("pro_pick", 0) + h.get("pro_ban", 0)), reverse=True)
+                items = []
+                for i, h in enumerate(by_contest[:4], 1):
+                    p = h.get("pro_pick", 0)
+                    b = h.get("pro_ban", 0)
+                    w = h.get("pro_win", 0)
+                    wr = (w / p * 100) if p else 0
+                    h_name = self.get_hero_short_name(h.get("id"))
+                    items.append(f"{i}.{h_name} ({p}P/{b}B, {wr:.0f}%)")
+                return f"🔥 Top Meta Trending: {' | '.join(items)}. Soi: !hero <tên hero>"
+
+            hero = self.find_hero(q_raw)
+            if hero:
+                hid = hero.get("id")
+                h_name = hero.get("localized_name") or f"Hero #{hid}"
+                h_short = self.get_hero_short_name(hid)
+
+                # Giới hạn Top 20 heroes hay chơi nhất, khóa các tướng còn lại
+                if hid not in ALLOWED_HERO_IDS:
+                    return (
+                        f"⚠️ Tướng {h_short} đang tạm khóa. Chỉ mở Top 20 tướng tủ của DH "
+                        f"(vd: !hero storm, !hero lesh, !hero sf, !hero axe, !hero invo...). "
+                        f"Gõ !hero để xem tổng quan!"
+                    )
+
+                matches_100 = self.get_player_recent_100_matches()
+                m25 = matches_100[:25]
+
+                h25 = [m for m in m25 if m.get("hero_id") == hid]
+                g25 = len(h25)
+                w25 = sum(1 for m in h25 if self._is_win(m))
+                l25 = g25 - w25
+
+                h100 = [m for m in matches_100 if m.get("hero_id") == hid]
+                g100 = len(h100)
+                w100 = sum(1 for m in h100 if self._is_win(m))
+                l100 = g100 - w100
+                wr100 = (w100 / g100 * 100) if g100 else 0
+
+                if g100 > 0:
+                    stat_str = f"25 trận: {g25} trận ({w25}W-{l25}L)" if g25 else "25 trận: 0 trận"
+                    stat_str += f" | 100 trận: {g100} trận ({w100}W-{l100}L, {wr100:.0f}%)"
+                else:
+                    all_time = self.get_player_heroes_all().get(hid, {})
+                    tot_g = all_time.get("games", 0)
+                    tot_w = all_time.get("win", 0)
+                    tot_wr = (tot_w / tot_g * 100) if tot_g else 0
+                    stat_str = "Chưa pick trong 100 trận gần nhất"
+                    if tot_g > 0:
+                        stat_str += f" (Sự nghiệp: {tot_g} trận, {tot_wr:.0f}%)"
+
+                # Phân tích Trending Meta
+                hero_stats = self.get_hero_stats()
+                by_contest = sorted(hero_stats, key=lambda h: (h.get("pro_pick", 0) + h.get("pro_ban", 0)), reverse=True)
+                c_rank = next((i + 1 for i, h in enumerate(by_contest) if h.get("id") == hid), 999)
+
+                p_pick = hero.get("pro_pick", 0)
+                p_ban = hero.get("pro_ban", 0)
+                p_win = hero.get("pro_win", 0)
+                p_wr = (p_win / p_pick * 100) if p_pick else 0
+
+                p7_pick = hero.get("7_pick", 0)
+                p7_win = hero.get("7_win", 0)
+                p7_wr = (p7_win / p7_pick * 100) if p7_pick else 0
+
+                trend_tag = f"🔥 Pro #{c_rank} ({p_pick}P/{p_ban}B, WR {p_wr:.0f}%)"
+                if p7_pick > 0:
+                    trend_tag += f" | Immortal WR: {p7_wr:.1f}%"
+
+                res = f"⚔️ {h_name} của DH: {stat_str} | {trend_tag}"
+                if len(res) > 195:
+                    res = f"⚔️ {h_short}: {stat_str} | Pro #{c_rank} ({p_pick}P/{p_ban}B, {p_wr:.0f}%) | Imm WR: {p7_wr:.0f}%"
+                if len(res) > 195:
+                    res = f"⚔️ {h_short}: {stat_str} | Pro #{c_rank} ({p_pick}P/{p_ban}B)"
+                return res
+
+            return f"⚠️ Không tìm thấy tướng nào tên '{query.strip()}'. Thử: !hero storm, !hero lesh, !hero sf hoặc gõ !hero để xem top tướng!"
         except Exception as e:
-            logger.error(f"Lỗi trong get_heroes_message: {e}", exc_info=True)
+            logger.error(f"Lỗi trong get_hero_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+
+    def get_heroes_message(self, query: Optional[str] = None) -> str:
+        """Generate response for !heroes / !besthero / !hero: tướng của streamer & trending."""
+        return self.get_hero_message(query)
 
     def get_player_peers(self, limit: int = 100) -> List[Dict[str, Any]]:
         """Lấy danh sách người chơi cùng trong `limit` trận gần nhất, cached 5 phút.
@@ -1893,6 +2296,12 @@ class OpenDotaClient:
 
             if q_clean in CUSTOM_EXTRA_PROS:
                 aid, display_name, team_tag = CUSTOM_EXTRA_PROS[q_clean]
+                if aid not in ALLOWED_PRO_IDS:
+                    return (
+                        f"⚠️ Tuyển thủ '{display_name}' đang tạm thời bị khóa. Hiện chỉ mở tra cứu "
+                        f"Top 20 Pro DH hay gặp nhất (vd: !pro hunghung, !pro 23savage, !pro skem, !pro yopaj...). "
+                        f"Gõ !pro để xem danh sách!"
+                    )
                 stats = self.get_custom_pro_stats(aid)
                 if stats and stats.get("games", 0) > 0:
                     tot_g = stats["games"]
@@ -1909,7 +2318,7 @@ class OpenDotaClient:
                         f"Đối đầu {a_g} trận ({a_w}W-{a_g - a_w}L, {a_wr:.1f}%)"
                     )
 
-            # 2. Giải thích chi tiết cho các siêu sao phương Tây / Bắc Mỹ mà streamer chưa từng gặp do dùng acc phụ / ẩn API khi sang SEA
+            # 2. Giải thích chi tiết cho các siêu sao phương Tây / Bắc Mỹ (khóa ngoài top 20)
             UNMET_PRO_EXPLANATIONS = {
                 # Arteezy
                 "rtz": "⚠️ Arteezy (RTZ) chủ yếu đánh cụm Bắc Mỹ (NA). Khi sang SEA bootcamp, RTZ thường dùng acc phụ ẩn dữ liệu nên API không lưu lịch sử công khai.",
@@ -1951,7 +2360,11 @@ class OpenDotaClient:
             }
 
             if q_clean in UNMET_PRO_EXPLANATIONS:
-                return UNMET_PRO_EXPLANATIONS[q_clean]
+                return (
+                    f"⚠️ Tuyển thủ '{query.strip()}' đang tạm thời bị khóa. Hiện chỉ mở tra cứu "
+                    f"Top 20 Pro DH hay gặp nhất (vd: !pro hunghung, !pro 23savage, !pro skem, !pro yopaj...). "
+                    f"Gõ !pro để xem danh sách!"
+                )
 
             # 2. Ánh xạ alias trực tiếp sang account_id cho các Pro Trung Quốc / có ký tự chữ Hán / ký tự lạ
             PRO_ACCOUNT_MAP = {
@@ -2166,8 +2579,18 @@ class OpenDotaClient:
             if not matched:
                 return f"⚠️ Không tìm thấy lịch sử đấu với '{query.strip()}'. Tuyển thủ có thể dùng acc phụ hoặc tắt chia sẻ dữ liệu (ẩn API) nên không lưu công khai."
 
-            has_custom = matched.get("account_id") in custom_display_names
-            p_name = custom_display_names.get(matched.get("account_id")) or matched.get("name") or matched.get("personaname")
+            matched_id = matched.get("account_id")
+            has_custom = matched_id in custom_display_names
+            p_name = custom_display_names.get(matched_id) or matched.get("name") or matched.get("personaname")
+
+            # Giới hạn Top 20 Pro streamer hay gặp nhất, khóa các tuyển thủ còn lại
+            if matched_id not in ALLOWED_PRO_IDS:
+                return (
+                    f"⚠️ Tuyển thủ '{p_name}' đang tạm thời bị khóa. Hiện chỉ mở tra cứu "
+                    f"Top 20 Pro DH hay gặp nhất (vd: !pro hunghung, !pro 23savage, !pro skem, !pro yopaj...). "
+                    f"Gõ !pro để xem danh sách!"
+                )
+
             tag = f" ({matched['team_tag']})" if (matched.get("team_tag") and not has_custom) else ""
             tot_g = matched.get("games", 0)
             w_g = matched.get("with_games", 0)
