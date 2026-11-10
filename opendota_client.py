@@ -1456,11 +1456,10 @@ class OpenDotaClient:
                 g100 = len(h100)
 
                 # Giới hạn chỉ mở các tướng streamer có đánh trong 100 trận gần nhất
+                # Nếu DH không đánh trong 100 trận gần nhất, bỏ qua không reply để tránh tốn quota chat
                 if g100 == 0:
-                    return (
-                        f"⚠️ DH không đánh {h_short} trong 100 trận gần nhất. "
-                        f"Hiện chỉ mở tra cứu tướng DH có đánh gần đây! Gõ !hero để xem tổng quan."
-                    )
+                    logger.info(f"DH không đánh {h_short} trong 100 trận gần nhất. Bỏ qua không reply để tiết kiệm quota.")
+                    return None
 
                 m25 = matches_100[:25]
                 h25 = [m for m in m25 if m.get("hero_id") == hid]
@@ -1500,10 +1499,11 @@ class OpenDotaClient:
                     res = f"⚔️ {h_short}: {stat_str} | Pro #{c_rank} ({p_pick}P/{p_ban}B)"
                 return res
 
-            return f"⚠️ Không tìm thấy tướng nào tên '{query.strip()}'. Thử: !hero storm, !hero lesh, !hero sf hoặc gõ !hero để xem top tướng!"
+            logger.info(f"Không tìm thấy hero ứng với '{query.strip()}'. Bỏ qua không reply để tiết kiệm quota.")
+            return None
         except Exception as e:
             logger.error(f"Lỗi trong get_hero_message: {e}", exc_info=True)
-            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+            return None
 
     def get_heroes_message(self, query: Optional[str] = None) -> str:
         """Generate response for !heroes / !besthero / !hero: tướng của streamer & trending."""
