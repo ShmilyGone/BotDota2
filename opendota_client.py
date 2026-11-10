@@ -2450,6 +2450,8 @@ class OpenDotaClient:
                 "inyourdream": 181716137,
                 "iyd": 181716137,
                 "kuku": 184950344,
+                "zeal": 147767183,
+                "seel": 147767183,
             }
 
             matched = None
@@ -2511,7 +2513,8 @@ class OpenDotaClient:
                                 break
 
             if not matched:
-                return f"⚠️ Không tìm thấy lịch sử đấu với '{query.strip()}'. Tuyển thủ có thể dùng acc phụ hoặc tắt chia sẻ dữ liệu (ẩn API) nên không lưu công khai."
+                logger.info(f"Không tìm thấy lịch sử đấu với '{query.strip()}'. Bỏ qua không reply để tiết kiệm quota.")
+                return None
 
             matched_id = matched.get("account_id")
             has_custom = matched_id in custom_display_names
@@ -2533,7 +2536,7 @@ class OpenDotaClient:
             )
         except Exception as e:
             logger.error(f"Lỗi trong get_pro_message: {e}", exc_info=True)
-            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+            return None
 
     def _load_dieback_cache(self) -> Dict[str, Any]:
         """Tải dữ liệu cache dieback từ file json local."""
