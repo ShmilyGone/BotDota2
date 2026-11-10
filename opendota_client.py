@@ -990,6 +990,79 @@ class OpenDotaClient:
             else:
                 return [], now.strftime("%d/%m")
 
+    def get_yesterday_stream_matches(self) -> Tuple[List[Dict[str, Any]], str]:
+        """
+        Lấy danh sách các trận đấu thuộc ca stream hôm trước (phiên trước).
+        Xử lý thông minh dựa theo các cụm ca stream (Session Clustering):
+        - Nếu ca gần nhất (Session 0) diễn ra hôm nay hoặc đang active:
+          -> Phiên hôm trước là ca stream trước đó (Session 1).
+        - Nếu hôm nay chưa có ca stream nào (Session 0 kết thúc trước 0h hôm nay):
+          -> Phiên hôm trước chính là Session 0.
+        Trả về: (target_matches, date_str)
+        """
+        now = datetime.now(self.tz)
+        today_start_ts = now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+
+        matches = self.get_recent_matches()
+        if not matches:
+            return [], ""
+
+        sessions = []
+        cur = []
+        for m in matches:
+            if not cur:
+                cur.append(m)
+            else:
+                prev_m = cur[-1]
+                prev_ts = self._start_time_epoch(prev_m) or 0
+                curr_ts = self._start_time_epoch(m) or 0
+                gap_hours = (prev_ts - curr_ts) / 3600.0
+                if gap_hours <= self.session_gap_hours:
+                    cur.append(m)
+                else:
+                    sessions.append(cur)
+                    cur = [m]
+        if cur:
+            sessions.append(cur)
+
+        if not sessions:
+            return [], ""
+
+        latest_m = sessions[0][0]
+        lat_ts = self._start_time_epoch(latest_m) or 0
+        lat_dur = latest_m.get("duration") or 0
+        time_since_latest = (now.timestamp() - (lat_ts + lat_dur)) / 3600.0
+        is_active = time_since_latest <= self.session_gap_hours
+
+        oldest_m_s0 = sessions[0][-1]
+        oldest_ts_s0 = self._start_time_epoch(oldest_m_s0) or 0
+
+        if is_active or oldest_ts_s0 >= today_start_ts or lat_ts >= today_start_ts:
+            if len(sessions) > 1:
+                target_session = sessions[1]
+            else:
+                return [], ""
+        else:
+            target_session = sessions[0]
+
+        oldest_m = target_session[-1]
+        oldest_ts = self._start_time_epoch(oldest_m) or 0
+        oldest_dt = datetime.fromtimestamp(oldest_ts, tz=self.tz)
+
+        newest_m = target_session[0]
+        newest_ts = self._start_time_epoch(newest_m) or 0
+        newest_dt = datetime.fromtimestamp(newest_ts, tz=self.tz)
+
+        if oldest_dt.date() != newest_dt.date():
+            if oldest_dt.month == newest_dt.month:
+                date_str = f"{oldest_dt.strftime('%d')}-{newest_dt.strftime('%d/%m')}"
+            else:
+                date_str = f"{oldest_dt.strftime('%d/%m')}-{newest_dt.strftime('%d/%m')}"
+        else:
+            date_str = newest_dt.strftime("%d/%m")
+
+        return target_session, date_str
+
     def format_rank(self, rank_tier: Optional[int], leaderboard_rank: Optional[int]) -> str:
         """Parse rank_tier and leaderboard_rank into human-readable string."""
         if not rank_tier:
@@ -1158,6 +1231,82 @@ class OpenDotaClient:
             return base_msg + hero_str
         except Exception as e:
             logger.error(f"Lỗi trong get_today_message: {e}", exc_info=True)
+            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+
+    def get_yesterday_message(self) -> str:
+        """Generate response for !yesterday / !homqua: thông tin kết quả phiên stream hôm trước."""
+        try:
+            player = self.get_player_data()
+            name = player.get("profile", {}).get("personaname", "Streamer")
+
+            session_matches, date_str = self.get_yesterday_stream_matches()
+
+            if not session_matches:
+                return "📅 Phiên stream hôm trước: chưa ghi nhận đủ dữ liệu lịch sử đấu."
+
+            wins = 0
+            losses = 0
+            hero_counts: Dict[str, Dict[str, int]] = {}
+
+            for m in session_matches:
+                won = self._is_win(m)
+                if won:
+                    wins += 1
+                else:
+                    losses += 1
+
+                h_name = self.get_hero_short_name(m.get("hero_id", 0))
+                if h_name not in hero_counts:
+                    hero_counts[h_name] = {"w": 0, "l": 0}
+                if won:
+                    hero_counts[h_name]["w"] += 1
+                else:
+                    hero_counts[h_name]["l"] += 1
+
+            total = wins + losses
+            wr = (wins / total * 100) if total > 0 else 0
+
+            # Trận chốt ca (trận cuối cùng của phiên đó, tức match index 0 trong session)
+            latest = session_matches[0]
+            lat_won = self._is_win(latest)
+            lat_hero = self.get_hero_short_name(latest.get("hero_id", 0))
+            lat_res = "Thắng ✅" if lat_won else "Thua ❌"
+            lat_kda = f"{latest.get('kills', 0)}/{latest.get('deaths', 0)}/{latest.get('assists', 0)}"
+
+            # MMR chốt ca nếu có
+            mmr_str = ""
+            if latest.get("mmr"):
+                mmr_val = float(latest["mmr"]) / 1000.0
+                mmr_str = f" [Avg MMR {mmr_val:.1f}k]"
+
+            base_msg = (
+                f"📅 Ca hôm trước ({date_str}): {wins}W - {losses}L ({wr:.1f}%) | "
+                f"Chốt ca: {lat_hero} ({lat_kda}) {lat_res}{mmr_str} | Tướng: "
+            )
+
+            hero_items = [f"{h} ({s['w']}W-{s['l']}L)" for h, s in hero_counts.items()]
+            included_heroes = []
+            has_more = False
+
+            for item in hero_items:
+                max_len = 182 if (len(included_heroes) + 1 < len(hero_items)) else 185
+                test_str = ", ".join(included_heroes + [item])
+                if len(base_msg + test_str) <= max_len:
+                    included_heroes.append(item)
+                else:
+                    has_more = True
+                    break
+
+            if not included_heroes:
+                included_heroes = hero_items[:1]
+
+            hero_str = ", ".join(included_heroes)
+            if has_more:
+                hero_str += "..."
+
+            return base_msg + hero_str
+        except Exception as e:
+            logger.error(f"Lỗi trong get_yesterday_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
     def get_last_message(self) -> str:

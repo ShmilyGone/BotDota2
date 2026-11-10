@@ -149,6 +149,8 @@ def resolve_channel_live_video(target_channel: str) -> Optional[str]:
 class YouTubeLiveChatBot:
     COMMAND_ALIASES = {
         "!homnay": "!today",
+        "!homqua": "!yesterday",
+        "!prev": "!yesterday",
         "!lenh": "!help",
         "!bot": "!help",
         "!commands": "!help",
@@ -183,7 +185,7 @@ class YouTubeLiveChatBot:
     LOCKED_COMMANDS = {"!streak", "!recent", "!mate", "!covy"}
 
     SUPPORTED_COMMANDS = {
-        "!today", "!rank", "!pro", "!pros", "!hero", "!heroes", "!meta", "!trending",
+        "!today", "!yesterday", "!homqua", "!rank", "!pro", "!pros", "!hero", "!heroes", "!meta", "!trending",
         "!dh", "!458", "!thocac",
         "!live", "!career", "!funfact", "!quota", "!2rax", "!tnc", "!2raxtnc",
         "!dieback", "!last", "!help", "!connapse", "!duo"
@@ -318,6 +320,8 @@ class YouTubeLiveChatBot:
         try:
             if cmd_key in ["!today"]:
                 return self.dota.get_today_message()
+            elif cmd_key in ["!yesterday", "!homqua", "!prev"]:
+                return self.dota.get_yesterday_message()
             elif cmd_key in ["!rank"]:
                 return self.dota.get_rank_message()
             elif cmd_key in ["!dh", "!458", "!thocac"]:
@@ -348,9 +352,9 @@ class YouTubeLiveChatBot:
                 return self.dota.get_duo_message()
             elif cmd_key in ["!help"]:
                 return (
-                    "📜 Lệnh: !today, !last, !rank, !hero, !dh, !live, !pro, !career, !funfact. "
+                    "📜 Lệnh: !today, !yesterday, !last, !rank, !hero, !dh, !live, !pro, !career, !funfact. "
                     "⏱️ Chờ 10s giữa các lệnh, 1p nếu lặp lại. "
-                    "Chưa kịp rep hãy gõ lại nhé! Gõ !quota để kiểm tra quota của BOT."
+                    "Chưa kịp rep hãy gõ lại nhé! Gõ !quota kiểm tra quota BOT."
                 )
         except Exception as e:
             logger.error(f"Lỗi khi thực thi lệnh '{cmd_key}': {e}", exc_info=True)

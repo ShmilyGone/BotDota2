@@ -12,6 +12,7 @@ Bot tự động lắng nghe live chat trên YouTube và phản hồi thông tin
 | Lệnh | Mô tả | Ví dụ kết quả phản hồi |
 | :--- | :--- | :--- |
 | `!today` hoặc `!homnay` | Thống kê kết quả thi đấu trong ngày hôm nay, chỉ tính trận bắt đầu từ 0h hôm nay theo múi giờ đã cấu hình (Thắng/Thua, Winrate, Tướng chơi, Trận vừa kết thúc) | `🔥 Hôm nay (05/11): 4W - 2L (66.7%) \| Trận vừa xong: Outworld Devourer (16/2/10) Thắng ✅ \| Tướng: Outworld Devourer (1W-0L), Ember Spirit (1W-0L)...` |
+| `!yesterday` hoặc `!homqua` | Thống kê kết quả của phiên stream hôm trước (Thắng/Thua, Winrate, Trận chốt ca kết thúc phiên, Tướng chơi) | `📅 Ca hôm trước (09/11): 7W - 5L (58.3%) \| Chốt ca: Storm (11/8/16) Thắng ✅ [Avg MMR 7.5k] \| Tướng: Storm (3W-1L), Axe (2W-0L)...` |
 | `!rank` | Xem medal/rank hiện tại của streamer kèm xếp hạng % thế giới (Percentile từ OpenDota `/distributions`) | `🏅 Rank của To the Moon and not back: Immortal (Top #154) \| Trình độ: Top 0.01% thế giới (cao hơn 99.99% người chơi)` |
 | `!streak` hoặc `!chuoi` | Chuỗi thắng/thua hiện tại, tính từ các trận gần nhất | `🔥 Đang thắng 4 trận liên tiếp \| Trận gần nhất: OD (16/2/10)` |
 | `!recent` hoặc `!5tran` | Kết quả 10 trận gần nhất, theo thứ tự thời gian | `📊 10 trận gần nhất: W W L W W L W W W L (7W-3L)` |
@@ -25,7 +26,7 @@ Bot tự động lắng nghe live chat trên YouTube và phản hồi thông tin
 | `!career` hoặc `!totals` | Thống kê toàn bộ sự nghiệp Dota 2: Tổng số trận, số giờ chơi, số kills, assists, tổng lượng sát thương | `📜 Sự nghiệp Dota 2 của To the Moon and not back: 16.845 trận (8.685W-8.160L, 51.6%) \| 9.736 giờ chơi (405 ngày đêm) \| 136.933 Kills \| 309 Triệu sát thương!` |
 | `!funfact` hoặc `!ditat` | Ngẫu nhiên 1 trong 10 góc fact "dị" độc đáo (gà bị giết, mua Thánh Kiếm Rapier, tốc độ tay APM, thời gian ngắm màn hình đen trắng đếm số, stun đối thủ, phá trụ, tiền xe ôm mua giấy TP...) | `🎭 Fun fact: 🪓 To the Moon and not back đã đồ sát 2.579 con gà (courier)! Cứ trung bình ~6 trận lại có 1 shipper xấu số bay màu.` |
 | `!connapse` | Góc Funfact tình đồng chí khi duo cùng tri kỷ connapse (SteamID 968755756): Tỉ lệ thắng, tướng tủ bảo kê, kỷ lục thời gian, KDA... | `🤝 Tri kỷ connapse: 31 trận kề vai sát cánh (18h44p), 100% CÙNG PHE chưa từng đối đầu! Kết quả: 14W - 17L (45.2%).` |
-| `!help` hoặc `!lenh` | Hiển thị danh sách các lệnh có sẵn | `📜 Lệnh có sẵn: !today, !last, !rank, !hero, !dh, !live, !pro, !career, !funfact, !connapse` |
+| `!help` hoặc `!lenh` | Hiển thị danh sách các lệnh có sẵn | `📜 Lệnh có sẵn: !today, !yesterday, !last, !rank, !hero, !dh, !live, !pro, !career, !funfact, !connapse` |
 
 ---
 
