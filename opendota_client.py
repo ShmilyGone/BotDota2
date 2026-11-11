@@ -1660,7 +1660,7 @@ class OpenDotaClient:
                 stat_str = f"25 trận: {g25} trận ({w25}W-{l25}L)" if g25 else "25 trận: 0 trận"
                 stat_str += f" | 100 trận: {g100} trận ({w100}W-{l100}L, {wr100:.0f}%)"
 
-                # Thống kê Sự nghiệp (All-time) của streamer trên tướng này thay cho Pro Trending
+                # Thống kê Sự nghiệp (All-time) của streamer trên tướng này (thay thế cho Pro)
                 all_heroes = self.get_player_heroes_all()
                 h_all = all_heroes.get(hid, {})
                 tot_g = h_all.get("games", 0)
@@ -1673,7 +1673,19 @@ class OpenDotaClient:
                 else:
                     career_tag = f"Sự nghiệp: {g100} trận ({w100}W-{l100}L, {wr100:.0f}%)"
 
-                res = f"⚔️ {h_name} của DH: {stat_str} | {career_tag}"
+                # Giữ lại thông số Trending tại mức rank Immortal
+                p7_pick = hero.get("7_pick", 0)
+                p7_win = hero.get("7_win", 0)
+                p7_wr = (p7_win / p7_pick * 100) if p7_pick else 0
+
+                extra_tag = f" | Immortal WR: {p7_wr:.1f}%" if p7_pick > 0 else ""
+
+                res = f"⚔️ {h_name} của DH: {stat_str} | {career_tag}{extra_tag}"
+                if len(res) > 195:
+                    extra_tag = f" | Imm WR: {p7_wr:.0f}%" if p7_pick > 0 else ""
+                    res = f"⚔️ {h_short} của DH: {stat_str} | {career_tag}{extra_tag}"
+                if len(res) > 195:
+                    res = f"⚔️ {h_short}: {stat_str} | {career_tag}{extra_tag}"
                 if len(res) > 195:
                     res = f"⚔️ {h_short}: {stat_str} | {career_tag}"
                 return res
