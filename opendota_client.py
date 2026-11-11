@@ -325,10 +325,10 @@ class OpenDotaClient:
         # Configure robust HTTP session with automatic retries for dropped connections
         self.session = requests.Session()
         retries = Retry(
-            total=3,
-            connect=3,
-            read=3,
-            backoff_factor=0.5,
+            total=2,
+            connect=2,
+            read=0,
+            backoff_factor=0.3,
             status_forcelist=[429, 500, 502, 503, 504],
             raise_on_status=False
         )
@@ -398,6 +398,10 @@ class OpenDotaClient:
         # Cache thống kê Dieback lưu trữ local
         self.dieback_cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dieback_cache.json")
         self._dieback_cache: Dict[str, Any] = self._load_dieback_cache()
+
+        # Cache thống kê Rampage lưu trữ local
+        self.rampage_cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rampage_cache.json")
+        self._rampage_cache: Dict[str, Any] = self._load_rampage_cache()
         
         self._last_refresh_time = 0.0
 
@@ -416,12 +420,12 @@ class OpenDotaClient:
                     pass
             threading.Thread(target=_refresh, daemon=True).start()
 
-    def _api_get(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Any:
+    def _api_get(self, endpoint: str, params: Optional[Dict[str, Any]] = None, timeout: int = 12) -> Any:
         url = f"https://api.opendota.com/api/{endpoint.lstrip('/')}"
         p = params.copy() if params else {}
         if self.api_key:
             p["api_key"] = self.api_key
-        resp = self.session.get(url, params=p, timeout=12)
+        resp = self.session.get(url, params=p, timeout=timeout)
         resp.raise_for_status()
         return resp.json()
 
@@ -459,20 +463,70 @@ class OpenDotaClient:
         return []
 
     def get_player_recent_100_matches(self) -> List[Dict[str, Any]]:
-        """Lấy 100 trận gần nhất của người chơi từ OpenDota, cached 60s."""
+        """Lấy 100 trận gần nhất của người chơi từ OpenDota hoặc Stratz, cached 60s."""
         now = time.time()
         if self._player_matches_100_cache and (now - self._player_matches_100_cache_time < self.cache_ttl_matches_100):
             return self._player_matches_100_cache
         try:
-            data = self._api_get(f"players/{self.account_id}/matches", params={"limit": 100})
-            if isinstance(data, list):
+            data = self._api_get(f"players/{self.account_id}/matches", params={"limit": 100}, timeout=4)
+            if isinstance(data, list) and len(data) > 0:
                 self._player_matches_100_cache = data
                 self._player_matches_100_cache_time = now
                 return data
         except Exception as e:
             logger.warning(f"Lỗi khi lấy 100 trận gần nhất từ OpenDota: {e}")
-            if self._player_matches_100_cache:
-                return self._player_matches_100_cache
+
+        # Fallback qua Stratz nếu OpenDota lỗi/timeout
+        if self.stratz_api_token:
+            try:
+                query = """
+                query {
+                  player(steamAccountId: %s) {
+                    matches(request: { take: 100 }) {
+                      id
+                      didRadiantWin
+                      startDateTime
+                      durationSeconds
+                      players(steamAccountId: %s) {
+                        heroId
+                        isVictory
+                        kills
+                        deaths
+                        assists
+                      }
+                    }
+                  }
+                }
+                """ % (self.account_id, self.account_id)
+                headers = {'Authorization': f'Bearer {self.stratz_api_token}', 'User-Agent': 'STRATZ_API'}
+                resp = self.session.post("https://api.stratz.com/graphql", json={"query": query}, headers=headers, timeout=5)
+                if resp.status_code == 200:
+                    m_list = resp.json().get("data", {}).get("player", {}).get("matches", [])
+                    if m_list:
+                        converted = []
+                        for sm in m_list:
+                            pls = sm.get("players") or []
+                            p = pls[0] if pls else {}
+                            converted.append({
+                                "match_id": sm.get("id"),
+                                "radiant_win": sm.get("didRadiantWin"),
+                                "start_time": sm.get("startDateTime"),
+                                "duration": sm.get("durationSeconds"),
+                                "hero_id": p.get("heroId"),
+                                "kills": p.get("kills", 0),
+                                "deaths": p.get("deaths", 0),
+                                "assists": p.get("assists", 0),
+                                "player_slot": 0 if p.get("isVictory") else 128,
+                                "is_victory": p.get("isVictory")
+                            })
+                        self._player_matches_100_cache = converted
+                        self._player_matches_100_cache_time = now
+                        return converted
+            except Exception as e:
+                logger.warning(f"Lỗi khi lấy 100 trận gần nhất từ Stratz: {e}")
+
+        if self._player_matches_100_cache:
+            return self._player_matches_100_cache
         return []
 
     def _load_player_heroes_all_cache(self) -> Dict[int, Dict[str, Any]]:
@@ -851,7 +905,7 @@ class OpenDotaClient:
 
         def _fetch_od_recent():
             try:
-                res = self._api_get(f"players/{self.account_id}/recentMatches")
+                res = self._api_get(f"players/{self.account_id}/recentMatches", timeout=4)
                 return res if isinstance(res, list) else []
             except Exception as e:
                 logger.warning(f"Lỗi khi lấy recentMatches từ OpenDota: {e}")
@@ -859,7 +913,7 @@ class OpenDotaClient:
 
         def _fetch_od_matches():
             try:
-                res = self._api_get(f"players/{self.account_id}/matches", params={"limit": 25})
+                res = self._api_get(f"players/{self.account_id}/matches", params={"limit": 25}, timeout=4)
                 return res if isinstance(res, list) else []
             except Exception as e:
                 logger.warning(f"Lỗi khi lấy từ OpenDota: {e}")
@@ -1478,7 +1532,11 @@ class OpenDotaClient:
 
     @staticmethod
     def _is_win(match: Dict[str, Any]) -> bool:
-        """Trận này streamer thắng hay thua (dựa vào player_slot / radiant_win)."""
+        """Trận này streamer thắng hay thua (dựa vào player_slot / radiant_win / is_victory)."""
+        if "is_victory" in match and match["is_victory"] is not None:
+            return bool(match["is_victory"])
+        if "win" in match and match["win"] is not None:
+            return bool(match["win"])
         is_radiant = match.get("player_slot", 0) < 128
         return bool((match.get("radiant_win") and is_radiant) or (not match.get("radiant_win") and not is_radiant))
 
@@ -2891,6 +2949,231 @@ class OpenDotaClient:
             )
         except Exception as e:
             logger.error(f"Lỗi trong get_dieback_message: {e}", exc_info=True)
+            return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
+
+    def _load_rampage_cache(self) -> Dict[str, Any]:
+        """Tải dữ liệu cache rampage từ file json local."""
+        if hasattr(self, "rampage_cache_file") and os.path.exists(self.rampage_cache_file):
+            try:
+                with open(self.rampage_cache_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        return data
+            except Exception as e:
+                logger.error(f"Lỗi đọc rampage cache: {e}")
+        return {"all_time": [], "matches": {}}
+
+    def _save_rampage_cache(self):
+        """Lưu dữ liệu cache rampage vào file json local."""
+        if not hasattr(self, "rampage_cache_file") or not self._rampage_cache:
+            return
+        try:
+            with open(self.rampage_cache_file, "w", encoding="utf-8") as f:
+                json.dump(self._rampage_cache, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"Lỗi lưu rampage cache: {e}")
+
+    def get_match_rampage_info(self, match_id: Union[int, str], m_meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Lấy thông tin rampage cho một trận đấu, ưu tiên từ cache, kiểm tra kills và parse."""
+        mid = str(match_id)
+        matches_dict = self._rampage_cache.setdefault("matches", {})
+        if mid in matches_dict:
+            return matches_dict[mid]
+
+        # Tối ưu hóa: nếu số kills < 5 thì chắc chắn không thể có Rampage
+        if m_meta and m_meta.get("kills", 0) < 5:
+            entry = {
+                "has_rampage": False,
+                "count": 0,
+                "hero_id": m_meta.get("hero_id"),
+                "kills": m_meta.get("kills", 0),
+                "win": self._is_win(m_meta),
+                "rampages": []
+            }
+            matches_dict[mid] = entry
+            return entry
+
+        # Kiểm tra Stratz killEvents (nếu có STRATZ token)
+        if self.stratz_api_token:
+            try:
+                query = """
+                query($mid: Long!) {
+                  match(id: $mid) {
+                    players(steamAccountId: %s) {
+                      heroId
+                      isVictory
+                      kills
+                      stats {
+                        killEvents {
+                          time
+                        }
+                      }
+                    }
+                  }
+                }
+                """ % self.account_id
+                headers = {'Authorization': f'Bearer {self.stratz_api_token}', 'User-Agent': 'STRATZ_API'}
+                resp = self.session.post(
+                    "https://api.stratz.com/graphql",
+                    json={"query": query, "variables": {"mid": int(mid)}},
+                    headers=headers,
+                    timeout=5
+                )
+                if resp.status_code == 200:
+                    m_res = resp.json().get("data", {}).get("match", {}).get("players", [])
+                    if m_res:
+                        pl = m_res[0]
+                        kevents = (pl.get("stats") or {}).get("killEvents") or []
+                        times = [k["time"] for k in kevents if "time" in k]
+                        streak = 1
+                        rm_times = []
+                        for i in range(1, len(times)):
+                            if times[i] - times[i-1] <= 18:
+                                streak += 1
+                                if streak >= 5:
+                                    rm_times.append(times[i])
+                            else:
+                                streak = 1
+                        
+                        has_rm = len(rm_times) > 0
+                        entry = {
+                            "has_rampage": has_rm,
+                            "count": len(rm_times),
+                            "hero_id": pl.get("heroId") or (m_meta.get("hero_id") if m_meta else None),
+                            "kills": pl.get("kills") or (m_meta.get("kills") if m_meta else 0),
+                            "win": pl.get("isVictory") if pl.get("isVictory") is not None else (self._is_win(m_meta) if m_meta else False),
+                            "rampages": rm_times
+                        }
+                        matches_dict[mid] = entry
+                        if has_rm:
+                            at_list = self._rampage_cache.setdefault("all_time", [])
+                            if not any(str(x.get("match_id")) == mid for x in at_list):
+                                at_list.insert(0, {
+                                    "match_id": int(mid),
+                                    "hero_id": entry["hero_id"],
+                                    "time": rm_times[0],
+                                    "kills": entry["kills"],
+                                    "win": entry["win"]
+                                })
+                        self._save_rampage_cache()
+                        return entry
+            except Exception as e:
+                logger.warning(f"Lỗi khi tra cứu Stratz rampage cho trận {mid}: {e}")
+
+        # Dự phòng qua OpenDota nếu Stratz không có
+        try:
+            mdata = self._api_get(f"/matches/{mid}", timeout=5)
+            if mdata and "players" in mdata:
+                p = next((x for x in mdata["players"] if str(x.get("account_id")) == self.account_id), None)
+                if p:
+                    multi = p.get("multi_kills") or {}
+                    r_cnt = multi.get("5", 0) or multi.get(5, 0)
+                    has_rm = bool(r_cnt)
+                    entry = {
+                        "has_rampage": has_rm,
+                        "count": r_cnt,
+                        "hero_id": p.get("hero_id"),
+                        "kills": p.get("kills", 0),
+                        "win": p.get("win") == 1,
+                        "rampages": []
+                    }
+                    matches_dict[mid] = entry
+                    self._save_rampage_cache()
+                    return entry
+        except Exception as e:
+            logger.warning(f"Lỗi khi tra cứu OpenDota rampage cho trận {mid}: {e}")
+
+        entry = {
+            "has_rampage": False,
+            "count": 0,
+            "hero_id": m_meta.get("hero_id") if m_meta else None,
+            "kills": m_meta.get("kills", 0) if m_meta else 0,
+            "win": self._is_win(m_meta) if m_meta else False,
+            "rampages": []
+        }
+        matches_dict[mid] = entry
+        return entry
+
+    def get_rampage_message(self, query: Optional[str] = None) -> str:
+        """Thống kê rampage của streamer trong ca stream hiện tại, 25 trận, 100 trận và All-time."""
+        try:
+            q = (query or "").strip().lower()
+            all_time_list = self._rampage_cache.get("all_time", [])
+            tot_all = len(all_time_list)
+
+            # Lấy thông tin kỷ lục / tướng nhiều rampage nhất trong sự nghiệp
+            top_hero_str = ""
+            c_heroes = Counter([rm.get("hero_id") for rm in all_time_list if rm.get("hero_id")])
+            if c_heroes:
+                top_hid, top_cnt = c_heroes.most_common(1)[0]
+                top_hero_str = f"{self.get_hero_short_name(top_hid)} ({top_cnt} lần)"
+
+            latest_all = all_time_list[0] if all_time_list else {}
+            gannhat_str = ""
+            if latest_all:
+                h_gannhat = self.get_hero_short_name(latest_all.get("hero_id"))
+                t_min = latest_all.get("time", 0) // 60
+                t_sec = latest_all.get("time", 0) % 60
+                time_part = f" phút {t_min}:{t_sec:02d}" if t_min > 0 else ""
+                res_part = "Thắng ✅" if latest_all.get("win") else "Thua ❌"
+                gannhat_str = f"Gần nhất: {h_gannhat}{time_part} {res_part}"
+
+            # 1. Nếu người dùng gõ !rampage all, !rampage top, !rampage lichsu
+            if q in ["all", "top", "lichsu", "history", "max"]:
+                items = []
+                for hid, cnt in c_heroes.most_common(4):
+                    items.append(f"{self.get_hero_short_name(hid)} ({cnt})")
+                items_str = ", ".join(items) if items else "Chưa có"
+                return f"📜 Sự nghiệp DH có {tot_all} pha Rampage! Tướng quẩy ác: {items_str}. {gannhat_str}!"
+
+            # 2. Thống kê theo ca hôm nay, 25 trận, 100 trận và all-time
+            m100 = self.get_player_recent_100_matches()
+            m25 = m100[:25]
+
+            # Kiểm tra rampage trong 100 trận & 25 trận
+            r100 = sum(1 for m in m100 if self.get_match_rampage_info(m.get("match_id"), m_meta=m).get("has_rampage"))
+            r25 = sum(1 for m in m25 if self.get_match_rampage_info(m.get("match_id"), m_meta=m).get("has_rampage"))
+
+            # Ca hôm nay
+            session_matches, date_str = self.get_current_stream_matches()
+            n_session = len(session_matches)
+            session_rampages = []
+            for m in session_matches:
+                mid = m.get("match_id")
+                r_info = self.get_match_rampage_info(mid, m_meta=m)
+                if r_info.get("has_rampage"):
+                    session_rampages.append({
+                        "match_id": mid,
+                        "hero_id": m.get("hero_id"),
+                        "win": self._is_win(m),
+                        "kills": m.get("kills", 0),
+                        "time": r_info.get("rampages", [0])[0] if r_info.get("rampages") else r_info.get("time", 0)
+                    })
+
+            r_session = len(session_rampages)
+
+            # Trường hợp có Rampage trong ca hôm nay
+            if r_session > 0:
+                latest_s = session_rampages[0]
+                h_s = self.get_hero_short_name(latest_s.get("hero_id"))
+                t_m = latest_s.get("time", 0) // 60
+                t_s = latest_s.get("time", 0) % 60
+                time_str = f" phút {t_m}:{t_s:02d}" if t_m > 0 else ""
+                res_s = "Thắng ✅" if latest_s.get("win") else "Thua ❌"
+                msg = (
+                    f"🔥 RAMPAGE CA HÔM NAY! DH quẩy {h_s}{time_str} ({res_s})! "
+                    f"25 trận: {r25} | 100 trận: {r100} | Cả đời: {tot_all} pha (Top: {top_hero_str})!"
+                )
+                return msg
+
+            # Trường hợp không có Rampage trong ca hôm nay
+            session_str = f"Ca hôm nay ({n_session} trận): 0" if n_session > 0 else f"Ca hôm nay ({date_str}): Chưa đánh"
+            msg = f"⚡ {session_str} | 25 trận: {r25} | 100 trận: {r100} | Sự nghiệp: {tot_all} pha Rampage! {gannhat_str}. Top: {top_hero_str}."
+            if len(msg) > 195:
+                msg = f"⚡ {session_str} | 25t: {r25} | 100t: {r100} | Cả đời: {tot_all} pha! {gannhat_str}."
+            return msg
+        except Exception as e:
+            logger.error(f"Lỗi trong get_rampage_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
 
 

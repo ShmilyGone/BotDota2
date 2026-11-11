@@ -41,6 +41,8 @@ def run_terminal_test(dota_client: OpenDotaClient):
     print("  !mate      - Hay duo với ai trong 100 trận gần nhất")
     print("  !live      - Trận đang diễn ra của streamer")
     print("  !career    - Tổng quan toàn bộ sự nghiệp Dota 2")
+    print("  !rampage   - Thống kê Rampage (ca hôm nay, 25 trận, 100 trận, all-time)")
+    print("  !dieback   - Thống kê nướng tiền mua mạng dieback")
     print("  !funfact   - Góc vui: APM, số lần ping map, Thánh kiếm, gà bị giết")
     print("  !connapse  - Funfact tình đồng chí khi duo cùng connapse")
     print("  !help      - Trợ giúp")
@@ -88,12 +90,16 @@ def run_terminal_test(dota_client: OpenDotaClient):
                 print(dota_client.get_career_message())
             elif cmd_name in ["!funfact", "!ditat"]:
                 print(dota_client.get_funfact_message())
+            elif cmd_name in ["!dieback"]:
+                print(dota_client.get_dieback_message(arg))
+            elif cmd_name in ["!rampage", "!rampages", "!5kill", "!pentakill"]:
+                print(dota_client.get_rampage_message(arg))
             elif cmd_name in ["!quota"]:
                 from account_pool import AccountPool
                 p = AccountPool()
                 print(p.get_quota_chat_message())
             elif cmd_name in ["!help", "!lenh"]:
-                print("📜 Lệnh: !today, !last, !rank, !hero, !dh, !live, !pro, !career, !funfact. ⏱️ Chờ 10s giữa các lệnh, 1p nếu lặp lại. Chưa kịp rep hãy gõ lại nhé! Gõ !quota để kiểm tra quota của BOT.")
+                print("📜 Lệnh: !today, !yesterday, !last, !rank, !hero, !dh, !rampage, !live, !pro, !career, !funfact. ⏱️ Chờ 10s giữa các lệnh, 1p nếu lặp lại. Chưa kịp rep hãy gõ lại nhé! Gõ !quota để kiểm tra quota của BOT.")
             else:
                 print(f"❓ Không nhận diện được lệnh '{cmd}'. Thử: !today, !rank, !career, !funfact, !connapse")
         except (KeyboardInterrupt, EOFError):

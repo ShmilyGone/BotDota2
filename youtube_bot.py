@@ -163,6 +163,9 @@ class YouTubeLiveChatBot:
         "!trending": "!hero",
         "!458": "!dh",
         "!thocac": "!dh",
+        "!rampages": "!rampage",
+        "!5kill": "!rampage",
+        "!pentakill": "!rampage",
         "!totals": "!career",
         "!sunghiep": "!career",
         "!su-nghiep": "!career",
@@ -188,7 +191,7 @@ class YouTubeLiveChatBot:
         "!today", "!yesterday", "!homqua", "!rank", "!pro", "!pros", "!hero", "!heroes", "!meta", "!trending",
         "!dh", "!458", "!thocac",
         "!live", "!career", "!funfact", "!quota", "!2rax", "!tnc", "!2raxtnc",
-        "!dieback", "!last", "!help", "!connapse", "!duo"
+        "!dieback", "!rampage", "!last", "!help", "!connapse", "!duo"
     }
 
     def __init__(
@@ -344,6 +347,8 @@ class YouTubeLiveChatBot:
                 return self.dota.get_tworax_message()
             elif cmd_key in ["!dieback"]:
                 return self.dota.get_dieback_message(arg)
+            elif cmd_key in ["!rampage", "!rampages", "!5kill", "!pentakill"]:
+                return self.dota.get_rampage_message(arg)
             elif cmd_key in ["!last"]:
                 return self.dota.get_last_message()
             elif cmd_key in ["!connapse", "!collapse"]:
@@ -352,7 +357,7 @@ class YouTubeLiveChatBot:
                 return self.dota.get_duo_message()
             elif cmd_key in ["!help"]:
                 return (
-                    "📜 Lệnh: !today, !yesterday, !last, !rank, !hero, !dh, !live, !pro, !career, !funfact. "
+                    "📜 Lệnh: !today, !yesterday, !last, !rank, !hero, !dh, !rampage, !live, !pro, !career, !funfact. "
                     "⏱️ Chờ 10s giữa các lệnh, 1p nếu lặp lại. "
                     "Chưa kịp rep hãy gõ lại nhé! Gõ !quota kiểm tra quota BOT."
                 )
