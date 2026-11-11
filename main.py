@@ -35,7 +35,7 @@ def run_terminal_test(dota_client: OpenDotaClient):
     print("  !rank      - Rank hiện tại (kèm % thế giới)")
     print("  !streak    - Chuỗi thắng/thua hiện tại")
     print("  !recent    - Kết quả 10 trận gần nhất")
-    print("  !hero [tên]- Tướng hay đánh 25/100 trận (W-L) & Trending Meta (vd: !hero storm, !hero)")
+    print("  !hero [tên]- Tướng hay đánh 25/100 trận (W-L) & Sự nghiệp All-time (vd: !hero storm, !hero)")
     print("  !dh        - Thông tin tiểu sử streamer DH (458 / Thocac)")
     print("  !pro [tên] - Pro player gặp hôm nay / đối đầu pro player cụ thể (vd: !pro 23savage)")
     print("  !mate      - Hay duo với ai trong 100 trận gần nhất")

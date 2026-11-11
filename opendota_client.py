@@ -391,8 +391,9 @@ class OpenDotaClient:
         self._hero_stats_cache_time = 0.0
         self._player_matches_100_cache: Optional[List[Dict[str, Any]]] = None
         self._player_matches_100_cache_time = 0.0
-        self._player_heroes_all_cache: Optional[Dict[int, Dict[str, Any]]] = None
-        self._player_heroes_all_cache_time = 0.0
+        self.player_heroes_all_cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_heroes_all_cache.json")
+        self._player_heroes_all_cache: Dict[int, Dict[str, Any]] = self._load_player_heroes_all_cache()
+        self._player_heroes_all_cache_time = time.time() if self._player_heroes_all_cache else 0.0
         
         # Cache thống kê Dieback lưu trữ local
         self.dieback_cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dieback_cache.json")
@@ -474,23 +475,56 @@ class OpenDotaClient:
                 return self._player_matches_100_cache
         return []
 
+    def _load_player_heroes_all_cache(self) -> Dict[int, Dict[str, Any]]:
+        """Tải dữ liệu cache thống kê cả đời (all-time) theo hero từ file json local."""
+        if hasattr(self, "player_heroes_all_cache_file") and os.path.exists(self.player_heroes_all_cache_file):
+            try:
+                with open(self.player_heroes_all_cache_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        return {int(h["hero_id"]): h for h in data if h.get("hero_id") is not None}
+                    elif isinstance(data, dict):
+                        return {int(k): v for k, v in data.items() if str(k).isdigit()}
+            except Exception as e:
+                logger.error(f"Lỗi đọc player_heroes_all cache: {e}")
+        return {}
+
+    def _save_player_heroes_all_cache(self):
+        """Lưu dữ liệu cache thống kê cả đời (all-time) theo hero vào file json local."""
+        if not hasattr(self, "player_heroes_all_cache_file") or not self._player_heroes_all_cache:
+            return
+        try:
+            save_data = {str(k): v for k, v in self._player_heroes_all_cache.items()}
+            with open(self.player_heroes_all_cache_file, "w", encoding="utf-8") as f:
+                json.dump(save_data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"Lỗi lưu player_heroes_all cache: {e}")
+
     def get_player_heroes_all(self) -> Dict[int, Dict[str, Any]]:
-        """Lấy thống kê cả đời theo tướng của người chơi từ /players/{id}/heroes, cached 24h."""
+        """Lấy thống kê cả đời theo tướng của người chơi từ cache local hoặc /players/{id}/heroes, cached 24h."""
         now = time.time()
         if self._player_heroes_all_cache and (now - self._player_heroes_all_cache_time < self.cache_ttl_player_heroes_all):
             return self._player_heroes_all_cache
+
+        if not self._player_heroes_all_cache:
+            self._player_heroes_all_cache = self._load_player_heroes_all_cache()
+            if self._player_heroes_all_cache:
+                self._player_heroes_all_cache_time = now
+                return self._player_heroes_all_cache
+
         try:
             data = self._api_get(f"players/{self.account_id}/heroes")
-            if isinstance(data, list):
+            if isinstance(data, list) and len(data) > 0:
                 result = {int(h.get("hero_id")): h for h in data if h.get("hero_id")}
                 self._player_heroes_all_cache = result
                 self._player_heroes_all_cache_time = now
+                self._save_player_heroes_all_cache()
                 return result
         except Exception as e:
             logger.warning(f"Lỗi khi lấy danh sách heroes all-time từ OpenDota: {e}")
             if self._player_heroes_all_cache:
                 return self._player_heroes_all_cache
-        return {}
+        return self._player_heroes_all_cache or {}
 
     def find_hero(self, query: str) -> Optional[Dict[str, Any]]:
         """Tìm tướng theo tên, viết tắt, alias hoặc ID."""
@@ -1536,11 +1570,10 @@ class OpenDotaClient:
         )
 
     def get_hero_message(self, query: Optional[str] = None) -> str:
-        """Thống kê tướng của streamer trong 25 & 100 trận gần nhất kèm phân tích Trending Pro Meta."""
+        """Thống kê tướng của streamer trong 25 & 100 trận gần nhất kèm Sự nghiệp All-time."""
         try:
             if not query or not query.strip():
                 matches_100 = self.get_player_recent_100_matches()
-                hero_stats = self.get_hero_stats()
                 
                 # 25 trận gần nhất
                 m25 = matches_100[:25]
@@ -1561,17 +1594,25 @@ class OpenDotaClient:
                     h_short = self.get_hero_short_name(hid)
                     t100.append(f"{h_short} ({w}W-{l}L)")
 
-                # Top trending pro meta (tổng pick + ban cao nhất)
-                by_contest = sorted(hero_stats, key=lambda h: (h.get("pro_pick", 0) + h.get("pro_ban", 0)), reverse=True)
-                hot = [self.get_hero_short_name(h.get("id")) for h in by_contest[:3]]
+                # Top cả đời (all-time) của streamer
+                all_heroes = self.get_player_heroes_all()
+                sorted_all = sorted(all_heroes.values(), key=lambda x: x.get("games", 0), reverse=True)
+                cadoc = []
+                for h in sorted_all[:3]:
+                    hid = int(h.get("hero_id", 0))
+                    g = h.get("games", 0)
+                    h_short = self.get_hero_short_name(hid)
+                    cadoc.append(f"{h_short} ({g}t)")
 
                 t25_str = ", ".join(t25) if t25 else "Chưa có"
                 t100_str = ", ".join(t100) if t100 else "Chưa có"
-                hot_str = ", ".join(hot) if hot else "Chưa có"
+                cadoc_str = ", ".join(cadoc) if cadoc else "Chưa có"
 
-                msg = f"🌟 Tướng DH: 25 trận: {t25_str} | 100 trận: {t100_str} | 🔥 Hot Meta: {hot_str}. Soi: !hero <tên>"
+                msg = f"🌟 Tướng DH: 25 trận: {t25_str} | 100 trận: {t100_str} | Cả đời: {cadoc_str}. Soi: !hero <tên>"
                 if len(msg) > 195:
-                    msg = f"🌟 DH: 25 trận: {t25_str} | 100 trận: {t100_str} | 🔥 Meta: {hot_str}. Soi: !hero <tên>"
+                    msg = f"🌟 DH: 25 trận: {t25_str} | 100 trận: {t100_str} | Cả đời: {cadoc_str}. Soi: !hero <tên>"
+                if len(msg) > 195:
+                    msg = f"🌟 DH: 25t: {t25_str} | 100t: {t100_str} | Cả đời: {cadoc_str}"
                 return msg
 
             q_raw = query.strip().lower()
@@ -1619,29 +1660,22 @@ class OpenDotaClient:
                 stat_str = f"25 trận: {g25} trận ({w25}W-{l25}L)" if g25 else "25 trận: 0 trận"
                 stat_str += f" | 100 trận: {g100} trận ({w100}W-{l100}L, {wr100:.0f}%)"
 
-                # Phân tích Trending Meta
-                hero_stats = self.get_hero_stats()
-                by_contest = sorted(hero_stats, key=lambda h: (h.get("pro_pick", 0) + h.get("pro_ban", 0)), reverse=True)
-                c_rank = next((i + 1 for i, h in enumerate(by_contest) if h.get("id") == hid), 999)
+                # Thống kê Sự nghiệp (All-time) của streamer trên tướng này thay cho Pro Trending
+                all_heroes = self.get_player_heroes_all()
+                h_all = all_heroes.get(hid, {})
+                tot_g = h_all.get("games", 0)
+                tot_w = h_all.get("win", 0)
+                tot_l = tot_g - tot_w
+                tot_wr = (tot_w / tot_g * 100) if tot_g else 0
 
-                p_pick = hero.get("pro_pick", 0)
-                p_ban = hero.get("pro_ban", 0)
-                p_win = hero.get("pro_win", 0)
-                p_wr = (p_win / p_pick * 100) if p_pick else 0
+                if tot_g > 0:
+                    career_tag = f"Sự nghiệp: {tot_g} trận ({tot_w}W-{tot_l}L, {tot_wr:.0f}%)"
+                else:
+                    career_tag = f"Sự nghiệp: {g100} trận ({w100}W-{l100}L, {wr100:.0f}%)"
 
-                p7_pick = hero.get("7_pick", 0)
-                p7_win = hero.get("7_win", 0)
-                p7_wr = (p7_win / p7_pick * 100) if p7_pick else 0
-
-                trend_tag = f"🔥 Pro #{c_rank} ({p_pick}P/{p_ban}B, WR {p_wr:.0f}%)"
-                if p7_pick > 0:
-                    trend_tag += f" | Immortal WR: {p7_wr:.1f}%"
-
-                res = f"⚔️ {h_name} của DH: {stat_str} | {trend_tag}"
+                res = f"⚔️ {h_name} của DH: {stat_str} | {career_tag}"
                 if len(res) > 195:
-                    res = f"⚔️ {h_short}: {stat_str} | Pro #{c_rank} ({p_pick}P/{p_ban}B, {p_wr:.0f}%) | Imm WR: {p7_wr:.0f}%"
-                if len(res) > 195:
-                    res = f"⚔️ {h_short}: {stat_str} | Pro #{c_rank} ({p_pick}P/{p_ban}B)"
+                    res = f"⚔️ {h_short}: {stat_str} | {career_tag}"
                 return res
 
             logger.info(f"Không tìm thấy hero ứng với '{query.strip()}'. Bỏ qua không reply để tiết kiệm quota.")
