@@ -813,5 +813,11 @@
     "hero_id": 1,
     "win": true,
     "diebacks": []
+  },
+  "9093546040": {
+    "parsed": true,
+    "hero_id": 49,
+    "win": true,
+    "diebacks": []
   }
 }

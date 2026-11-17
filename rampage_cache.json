@@ -929,6 +929,70 @@
       "kills": 11,
       "win": true,
       "rampages": []
+    },
+    "9093752758": {
+      "has_rampage": false,
+      "count": 0,
+      "hero_id": 2,
+      "kills": 24,
+      "win": true,
+      "rampages": []
+    },
+    "9093546040": {
+      "has_rampage": false,
+      "count": 0,
+      "hero_id": 49,
+      "kills": 22,
+      "win": true,
+      "rampages": []
+    },
+    "9093014876": {
+      "has_rampage": false,
+      "count": 0,
+      "hero_id": 106,
+      "kills": 20,
+      "win": true,
+      "rampages": []
+    },
+    "9092906063": {
+      "has_rampage": false,
+      "count": 0,
+      "hero_id": 1,
+      "kills": 4,
+      "win": false,
+      "rampages": []
+    },
+    "9092750469": {
+      "has_rampage": false,
+      "count": 0,
+      "hero_id": 97,
+      "kills": 3,
+      "win": false,
+      "rampages": []
+    },
+    "9092707212": {
+      "has_rampage": false,
+      "count": 0,
+      "hero_id": 46,
+      "kills": 10,
+      "win": true,
+      "rampages": []
+    },
+    "9092577185": {
+      "has_rampage": false,
+      "count": 0,
+      "hero_id": 51,
+      "kills": 3,
+      "win": true,
+      "rampages": []
+    },
+    "9089808677": {
+      "has_rampage": false,
+      "count": 0,
+      "hero_id": 106,
+      "kills": 7,
+      "win": true,
+      "rampages": []
     }
   }
 }

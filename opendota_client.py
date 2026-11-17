@@ -1078,7 +1078,8 @@ class OpenDotaClient:
                 prev_m = session_matches[-1]
                 prev_ts = self._start_time_epoch(prev_m) or 0
                 curr_ts = self._start_time_epoch(m) or 0
-                gap_hours = (prev_ts - curr_ts) / 3600.0
+                curr_dur = m.get("duration") or 0
+                gap_hours = max(0.0, (prev_ts - (curr_ts + curr_dur)) / 3600.0)
                 if gap_hours <= self.session_gap_hours:
                     session_matches.append(m)
                 else:
@@ -1088,16 +1089,22 @@ class OpenDotaClient:
     def get_current_stream_matches(self) -> Tuple[List[Dict[str, Any]], str]:
         """
         Lấy danh sách các trận đấu thuộc ca stream hiện tại hoặc ca hôm nay.
-        Xử lý thông minh khi ca stream kéo dài xuyên qua nửa đêm (0h sáng):
-        - Nếu ca stream đang diễn ra (trận gần nhất cách đây <= session_gap_hours):
-          gom toàn bộ các trận của ca (kể cả trước và sau 0h).
-        - Nếu ca stream đã kết thúc (> session_gap_hours):
-          chỉ lấy nếu ca bắt đầu từ hôm nay (sau 0h); nếu ca từ hôm qua thì coi như
-          hôm nay chưa có ca stream mới.
+        Xử lý thông minh khi ca stream kéo dài xuyên qua nửa đêm (0h sáng)
+        hoặc streamer đánh nhiều phiên trong cùng ngày:
+        - Nếu ca stream gần nhất đang diễn ra (trận gần nhất cách đây <= session_gap_hours):
+          + Nếu ca bắt đầu từ hôm trước (xuyên đêm): lấy toàn bộ ca đó.
+          + Nếu ca bắt đầu từ hôm nay: gom toàn bộ các trận đã đánh từ 0h hôm nay.
+        - Nếu ca stream gần nhất đã kết thúc (> session_gap_hours):
+          chỉ lấy các trận đánh từ 0h hôm nay (nếu ca trước từ hôm qua kết thúc thì coi như
+          hôm nay chưa có ca stream mới).
         Trả về: (target_matches, date_str)
         """
         now = datetime.now(self.tz)
         today_start_ts = now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+
+        matches = self.get_recent_matches()
+        if not matches:
+            return [], now.strftime("%d/%m")
 
         session_matches = self.get_session_matches()
         if not session_matches:
@@ -1112,33 +1119,49 @@ class OpenDotaClient:
 
         oldest_m = session_matches[-1]
         oldest_ts = self._start_time_epoch(oldest_m) or 0
-        oldest_dt = datetime.fromtimestamp(oldest_ts, tz=self.tz)
 
-        if oldest_dt.date() != now.date():
-            if oldest_dt.month == now.month:
-                date_str = f"{oldest_dt.strftime('%d')}-{now.strftime('%d/%m')}"
-            else:
-                date_str = f"{oldest_dt.strftime('%d/%m')}-{now.strftime('%d/%m')}"
+        # Nếu là ca xuyên đêm đang active (bắt đầu trước 0h hôm nay):
+        # giữ nguyên toàn bộ các trận trong ca đó
+        if is_active_session and oldest_ts < today_start_ts:
+            target_matches = session_matches
         else:
-            date_str = now.strftime("%d/%m")
-
-        if is_active_session:
-            return session_matches, date_str
-        else:
-            if oldest_ts >= today_start_ts:
-                return session_matches, date_str
+            # Thu thập tất cả các trận bắt đầu từ 0h hôm nay
+            today_matches = [m for m in matches if (self._start_time_epoch(m) or 0) >= today_start_ts]
+            if today_matches:
+                target_matches = today_matches
+            elif is_active_session:
+                target_matches = session_matches
             else:
                 return [], now.strftime("%d/%m")
+
+        if not target_matches:
+            return [], now.strftime("%d/%m")
+
+        oldest_target = target_matches[-1]
+        oldest_target_ts = self._start_time_epoch(oldest_target) or 0
+        oldest_dt = datetime.fromtimestamp(oldest_target_ts, tz=self.tz)
+
+        newest_target = target_matches[0]
+        newest_target_ts = self._start_time_epoch(newest_target) or 0
+        newest_dt = datetime.fromtimestamp(newest_target_ts, tz=self.tz)
+
+        if oldest_dt.date() != newest_dt.date():
+            if oldest_dt.month == newest_dt.month:
+                date_str = f"{oldest_dt.strftime('%d')}-{newest_dt.strftime('%d/%m')}"
+            else:
+                date_str = f"{oldest_dt.strftime('%d/%m')}-{newest_dt.strftime('%d/%m')}"
+        else:
+            date_str = newest_dt.strftime("%d/%m")
+
+        return target_matches, date_str
 
     def get_yesterday_stream_matches(self) -> Tuple[List[Dict[str, Any]], str]:
         """
         Lấy danh sách các trận đấu thuộc ca stream hôm trước (phiên trước).
         Xử lý thông minh dựa theo các cụm ca stream (Session Clustering):
-        - Nếu ca gần nhất (Session 0) diễn ra hôm nay hoặc đang active:
-          -> Phiên hôm trước là ca stream trước đó (Session 1).
-        - Nếu hôm nay chưa có ca stream nào (Session 0 kết thúc trước 0h hôm nay):
-          -> Phiên hôm trước chính là Session 0.
-        Trả về: (target_matches, date_str)
+        - Bỏ qua các session đang active hoặc diễn ra hoàn toàn trong ngày hôm nay.
+        - Chọn session gần nhất trước hôm nay (hoặc ca xuyên đêm đã kết thúc).
+        Trả về: (target_session, date_str)
         """
         now = datetime.now(self.tz)
         today_start_ts = now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
@@ -1156,7 +1179,8 @@ class OpenDotaClient:
                 prev_m = cur[-1]
                 prev_ts = self._start_time_epoch(prev_m) or 0
                 curr_ts = self._start_time_epoch(m) or 0
-                gap_hours = (prev_ts - curr_ts) / 3600.0
+                curr_dur = m.get("duration") or 0
+                gap_hours = max(0.0, (prev_ts - (curr_ts + curr_dur)) / 3600.0)
                 if gap_hours <= self.session_gap_hours:
                     cur.append(m)
                 else:
@@ -1168,18 +1192,31 @@ class OpenDotaClient:
         if not sessions:
             return [], ""
 
-        today_matches, _ = self.get_current_stream_matches()
-        if today_matches:
-            # Hôm nay đang có ca stream (hoặc đã có ca stream bắt đầu từ hôm nay)
-            # -> Ca hôm trước là session liền trước (sessions[1])
-            if len(sessions) > 1:
-                target_session = sessions[1]
-            else:
-                return [], ""
-        else:
-            # Hôm nay chưa có ca stream nào (streamer chưa lên sóng hôm nay)
-            # -> Ca hôm trước chính là session gần nhất vừa kết thúc (sessions[0])
-            target_session = sessions[0]
+        target_session = None
+        for idx, s in enumerate(sessions):
+            s_newest_m = s[0]
+            s_newest_ts = self._start_time_epoch(s_newest_m) or 0
+            s_newest_dur = s_newest_m.get("duration") or 0
+            s_end_ts = s_newest_ts + s_newest_dur
+            s_oldest_ts = self._start_time_epoch(s[-1]) or 0
+
+            # Nếu session đang active trên stream (idx == 0 và chưa quá gap_hours):
+            # đây là ca hiện tại, bỏ qua
+            is_active = (idx == 0) and ((now.timestamp() - s_end_ts) / 3600.0 <= self.session_gap_hours)
+            if is_active:
+                continue
+
+            # Nếu session bắt đầu từ 0h hôm nay:
+            # đây là ca diễn ra hôm nay, bỏ qua
+            if s_oldest_ts >= today_start_ts:
+                continue
+
+            # Đây là session hợp lệ gần nhất trước hôm nay
+            target_session = s
+            break
+
+        if not target_session:
+            return [], ""
 
         oldest_m = target_session[-1]
         oldest_ts = self._start_time_epoch(oldest_m) or 0
