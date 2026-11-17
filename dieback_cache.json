@@ -1,6 +1,8 @@
 {
   "9079659255": {
-    "parsed": false,
+    "parsed": true,
+    "hero_id": 52,
+    "win": true,
     "diebacks": []
   },
   "9079621205": {
@@ -16,23 +18,47 @@
     "diebacks": []
   },
   "9079565107": {
-    "parsed": false,
+    "parsed": true,
+    "hero_id": 2,
+    "win": true,
     "diebacks": []
   },
   "9078760841": {
-    "parsed": false,
+    "parsed": true,
+    "hero_id": 76,
+    "win": true,
     "diebacks": []
   },
   "9078689911": {
-    "parsed": false,
-    "diebacks": []
+    "parsed": true,
+    "hero_id": 33,
+    "win": false,
+    "diebacks": [
+      {
+        "bb_time": 1779,
+        "death_time": 1825,
+        "sec_after_bb": 46,
+        "killer": "juggernaut"
+      }
+    ]
   },
   "9078609821": {
-    "parsed": false,
-    "diebacks": []
+    "parsed": true,
+    "hero_id": 52,
+    "win": false,
+    "diebacks": [
+      {
+        "bb_time": 2295,
+        "death_time": 2344,
+        "sec_after_bb": 49,
+        "killer": "phantom_lancer"
+      }
+    ]
   },
   "9078558262": {
-    "parsed": false,
+    "parsed": true,
+    "hero_id": 46,
+    "win": true,
     "diebacks": []
   },
   "9078493919": {
@@ -42,12 +68,23 @@
     "diebacks": []
   },
   "9078451012": {
-    "parsed": false,
+    "parsed": true,
+    "hero_id": 76,
+    "win": false,
     "diebacks": []
   },
   "9078383701": {
-    "parsed": false,
-    "diebacks": []
+    "parsed": true,
+    "hero_id": 46,
+    "win": true,
+    "diebacks": [
+      {
+        "bb_time": 1869,
+        "death_time": 1930,
+        "sec_after_bb": 61,
+        "killer": "void_spirit"
+      }
+    ]
   },
   "9078338348": {
     "parsed": true,
@@ -75,8 +112,17 @@
     "diebacks": []
   },
   "9078225522": {
-    "parsed": false,
-    "diebacks": []
+    "parsed": true,
+    "hero_id": 34,
+    "win": false,
+    "diebacks": [
+      {
+        "bb_time": 905,
+        "death_time": 968,
+        "sec_after_bb": 63,
+        "killer": "dragon_knight"
+      }
+    ]
   },
   "9078185456": {
     "parsed": true,
@@ -113,11 +159,15 @@
     "diebacks": []
   },
   "9077555688": {
-    "parsed": false,
+    "parsed": true,
+    "hero_id": 33,
+    "win": true,
     "diebacks": []
   },
   "9077490224": {
-    "parsed": false,
+    "parsed": true,
+    "hero_id": 97,
+    "win": false,
     "diebacks": []
   },
   "9077420735": {
@@ -744,5 +794,24 @@
         "killer": "legion_commander"
       }
     ]
+  },
+  "9093752758": {
+    "parsed": true,
+    "hero_id": 2,
+    "win": true,
+    "diebacks": [
+      {
+        "bb_time": 3279,
+        "death_time": 3308,
+        "sec_after_bb": 29,
+        "killer": "techies"
+      }
+    ]
+  },
+  "9999999999": {
+    "parsed": true,
+    "hero_id": 1,
+    "win": true,
+    "diebacks": []
   }
 }

@@ -6,7 +6,7 @@ import re
 import random
 from collections import Counter
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Optional, List, Union, Tuple
+from typing import Dict, Any, Optional, List, Union, Tuple, Set
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
@@ -404,6 +404,22 @@ class OpenDotaClient:
         self._rampage_cache: Dict[str, Any] = self._load_rampage_cache()
         
         self._last_refresh_time = 0.0
+        self._parse_requested_matches: Set[str] = set()
+        self._hero_name_to_id: Dict[str, int] = {}
+
+    def trigger_parse_match(self, match_id: Union[int, str]):
+        """Asynchronously request OpenDota to parse match replay if not already requested."""
+        mid = str(match_id)
+        if mid in self._parse_requested_matches:
+            return
+        self._parse_requested_matches.add(mid)
+        def _req():
+            try:
+                self.session.post(f"https://api.opendota.com/api/request/{mid}", timeout=5)
+                logger.info(f"Đã gửi yêu cầu parse replay trận {mid} tới OpenDota")
+            except Exception as e:
+                logger.debug(f"Không thể gửi yêu cầu parse trận {mid}: {e}")
+        threading.Thread(target=_req, daemon=True).start()
 
     def trigger_opendota_refresh(self):
         """Asynchronously notify OpenDota to sync recent matches from Valve."""
@@ -435,7 +451,13 @@ class OpenDotaClient:
             try:
                 data = self._api_get("constants/heroes")
                 for hid_str, hero_info in data.items():
-                    self._heroes_cache[int(hid_str)] = hero_info.get("localized_name", f"Hero #{hid_str}")
+                    hid = int(hid_str)
+                    self._heroes_cache[hid] = hero_info.get("localized_name", f"Hero #{hid_str}")
+                    raw_name = hero_info.get("name", "")
+                    if raw_name:
+                        self._hero_name_to_id[raw_name.lower()] = hid
+                        short_raw = raw_name.replace("npc_dota_hero_", "").lower()
+                        self._hero_name_to_id[short_raw] = hid
             except Exception:
                 return f"Hero #{hero_id}"
         return self._heroes_cache.get(hero_id, f"Hero #{hero_id}")
@@ -444,6 +466,30 @@ class OpenDotaClient:
         """Get common community abbreviation for hero name (e.g. Outworld Devourer -> OD, Templar Assassin -> TA)."""
         full_name = self.get_hero_name(hero_id)
         return HERO_ABBREVIATIONS.get(full_name, full_name)
+
+    def format_killer_name(self, killer_str: Optional[str]) -> str:
+        """Format killer key (e.g. npc_dota_hero_techies, npc_dota_badguys_tower1_mid) into human-readable name."""
+        if not killer_str:
+            return "Đối thủ"
+        k_lower = killer_str.lower().strip()
+        if "tower" in k_lower:
+            return "Trụ"
+        if "fountain" in k_lower:
+            return "Hồ máu"
+        if "roshan" in k_lower:
+            return "Roshan"
+        if "neutral" in k_lower:
+            return "Quái rừng"
+
+        self.get_hero_name(1)  # ensure heroes cache is populated
+        clean_key = k_lower.replace("npc_dota_hero_", "").replace("dota_", "").replace("_", "")
+        for raw_name, hid in self._hero_name_to_id.items():
+            raw_clean = raw_name.replace("npc_dota_hero_", "").replace("dota_", "").replace("_", "")
+            if clean_key == raw_clean or k_lower == raw_name:
+                return self.get_hero_short_name(hid)
+
+        clean = killer_str.replace("npc_dota_hero_", "").replace("dota_", "").replace("_", " ").title()
+        return HERO_ABBREVIATIONS.get(clean, clean)
 
     def get_hero_stats(self) -> List[Dict[str, Any]]:
         """Lấy danh sách thống kê toàn bộ tướng (pro picks, bans, winrate, pub trends) từ /heroStats, cached 30p."""
@@ -959,9 +1005,9 @@ class OpenDotaClient:
                     elif curr.get("radiant_win") is None and m.get("radiant_win") is not None:
                         merged[mid_int] = m
                     
-                    # Giữ lại các trường chi tiết bổ sung từ D2PT/STRATZ nếu bản ghi hiện tại chưa có
+                    # Giữ lại các trường chi tiết bổ sung từ D2PT/STRATZ/OpenDota nếu bản ghi hiện tại chưa có
                     target = merged[mid_int]
-                    for field in ["mmr", "role", "pmp", "net_worth", "gold_per_min", "last_hits", "item_timeline", "pros"]:
+                    for field in ["version", "mmr", "role", "pmp", "net_worth", "gold_per_min", "last_hits", "item_timeline", "pros"]:
                         if m.get(field) is not None and target.get(field) is None:
                             target[field] = m[field]
 
@@ -971,6 +1017,12 @@ class OpenDotaClient:
                 key=lambda x: (self._start_time_epoch(x) or 0, int(x.get("match_id", 0))),
                 reverse=True
             )
+
+            # Tự động gửi yêu cầu parse replay cho các trận gần nhất nếu OpenDota chưa parse và có deaths
+            for sm in sorted_matches[:3]:
+                if sm.get("version") is None and sm.get("deaths", 0) > 0:
+                    self.trigger_parse_match(sm.get("match_id"))
+
             self._matches_cache = sorted_matches
             self._matches_cache_time = now
             return sorted_matches
@@ -2788,55 +2840,86 @@ class OpenDotaClient:
             return None
 
     def _load_dieback_cache(self) -> Dict[str, Any]:
-        """Tải dữ liệu cache dieback từ file json local."""
+        """Tải dữ liệu cache dieback từ file json local. Tự động lọc bỏ các bản ghi chưa parse để đảm bảo dữ liệu luôn chính xác."""
         if os.path.exists(self.dieback_cache_file):
             try:
                 with open(self.dieback_cache_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        return {k: v for k, v in data.items() if isinstance(v, dict) and v.get("parsed", False)}
             except Exception as e:
                 logger.error(f"Lỗi đọc dieback cache: {e}")
         return {}
 
     def _save_dieback_cache(self):
-        """Lưu dữ liệu cache dieback vào file json local."""
+        """Lưu dữ liệu cache dieback vào file json local (chỉ lưu các bản ghi đã parse thành công)."""
         try:
+            valid_cache = {k: v for k, v in self._dieback_cache.items() if isinstance(v, dict) and v.get("parsed", False)}
             with open(self.dieback_cache_file, "w", encoding="utf-8") as f:
-                json.dump(self._dieback_cache, f, ensure_ascii=False, indent=2)
+                json.dump(valid_cache, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.error(f"Lỗi lưu dieback cache: {e}")
 
     def get_match_dieback_info(self, match_id: Union[int, str], m_meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Lấy thông tin dieback cho một trận đấu, ưu tiên từ cache, nếu chưa có thì fetch và lưu cache."""
+        """Lấy thông tin dieback cho một trận đấu, ưu tiên từ cache đã parse, nếu chưa có thì fetch và lưu cache."""
         mid = str(match_id)
+        # 1. Nếu đã có trong cache và đã parse thành công -> trả về ngay
         if mid in self._dieback_cache:
-            return self._dieback_cache[mid]
-
-        # Nếu metadata cho thấy trận chưa parse hoặc 0 deaths thì lưu luôn không có dieback
-        if m_meta:
-            if m_meta.get("version") is None or m_meta.get("deaths", 0) == 0:
-                entry = {
-                    "parsed": bool(m_meta.get("version")),
-                    "hero_id": m_meta.get("hero_id"),
-                    "win": self._is_win(m_meta),
-                    "diebacks": []
-                }
-                self._dieback_cache[mid] = entry
+            entry = self._dieback_cache[mid]
+            if entry.get("parsed", False):
                 return entry
 
+        # 2. Nếu metadata cho thấy 0 deaths thì chắc chắn 100% không thể có dieback
+        if m_meta and m_meta.get("deaths", 0) == 0:
+            entry = {
+                "parsed": True,
+                "hero_id": m_meta.get("hero_id"),
+                "win": self._is_win(m_meta),
+                "diebacks": []
+            }
+            self._dieback_cache[mid] = entry
+            self._save_dieback_cache()
+            return entry
+
+        # 3. Tra cứu chi tiết trận đấu từ OpenDota
         try:
-            mdata = self._api_get(f"/matches/{mid}")
+            mdata = self._api_get(f"/matches/{mid}", timeout=6)
             if not mdata or "players" not in mdata:
-                entry = {"parsed": False, "diebacks": []}
-                self._dieback_cache[mid] = entry
-                return entry
+                self.trigger_parse_match(mid)
+                return {"parsed": False, "hero_id": (m_meta.get("hero_id") if m_meta else None), "diebacks": []}
 
             p = next((x for x in mdata["players"] if str(x.get("account_id")) == self.account_id), None)
             if not p:
-                entry = {"parsed": False, "diebacks": []}
-                self._dieback_cache[mid] = entry
-                return entry
+                return {"parsed": False, "hero_id": (m_meta.get("hero_id") if m_meta else None), "diebacks": []}
 
-            bb_log = p.get("buyback_log") or []
+            version = mdata.get("version")
+            bb_log = p.get("buyback_log")
+
+            # Nếu trận chưa được parse replay trên OpenDota
+            if version is None or bb_log is None:
+                self.trigger_parse_match(mid)
+                # Thử chờ nhẹ 1.5s và lấy lại nếu parse vừa hoàn tất
+                time.sleep(1.5)
+                try:
+                    retry_mdata = self._api_get(f"/matches/{mid}", timeout=4)
+                    if retry_mdata and retry_mdata.get("version") is not None:
+                        retry_p = next((x for x in retry_mdata.get("players", []) if str(x.get("account_id")) == self.account_id), None)
+                        if retry_p and retry_p.get("buyback_log") is not None:
+                            mdata = retry_mdata
+                            p = retry_p
+                            version = mdata.get("version")
+                            bb_log = p.get("buyback_log")
+                except Exception:
+                    pass
+
+            if version is None or bb_log is None:
+                return {
+                    "parsed": False,
+                    "hero_id": p.get("hero_id") or (m_meta.get("hero_id") if m_meta else None),
+                    "win": p.get("win") == 1 if p.get("win") is not None else (self._is_win(m_meta) if m_meta else False),
+                    "diebacks": []
+                }
+
             deaths_log = p.get("deaths_log") or []
             diebacks = []
             for bb in bb_log:
@@ -2864,18 +2947,12 @@ class OpenDotaClient:
             return entry
         except Exception as e:
             logger.error(f"Lỗi kiểm tra dieback cho trận {mid}: {e}")
-            return {"parsed": False, "diebacks": []}
+            return {"parsed": False, "hero_id": (m_meta.get("hero_id") if m_meta else None), "diebacks": []}
 
     def get_dieback_message(self, query: Optional[str] = None) -> str:
         """Thống kê dieback của streamer trong ca stream hiện tại hoặc 100 trận gần nhất."""
         try:
             q = (query or "").strip().lower()
-
-            def _fmt_killer(k_str: Optional[str]) -> str:
-                if not k_str:
-                    return "Đối thủ"
-                clean = k_str.replace("npc_dota_hero_", "").replace("dota_", "").replace("_", " ").title()
-                return HERO_ABBREVIATIONS.get(clean, clean)
 
             # 1. Thống kê tổng hợp 100 trận nếu người dùng gõ: !dieback 100, !dieback all, !dieback top
             if q in ["100", "all", "top", "max"]:
@@ -2883,6 +2960,8 @@ class OpenDotaClient:
                 hero_counts = Counter()
                 fastest = (999, None, None, None)
                 for mid, d in self._dieback_cache.items():
+                    if not d.get("parsed", False):
+                        continue
                     for db in d.get("diebacks", []):
                         hid = d.get("hero_id")
                         all_diebacks.append((mid, hid, db, d.get("win")))
@@ -2900,7 +2979,7 @@ class OpenDotaClient:
                 fastest_str = ""
                 if fastest[1] is not None:
                     h_name = self.get_hero_short_name(fastest[1])
-                    k_name = _fmt_killer(fastest[2])
+                    k_name = self.format_killer_name(fastest[2])
                     fastest_str = f" Kỷ lục ngã ngửa: {h_name} BB xong nằm xuống sau đúng {fastest[0]}s bởi {k_name}!"
 
                 return f"💀 Thống kê 100 trận gần nhất: {len(all_diebacks)} pha Dieback!{top_str}{fastest_str}"
@@ -2908,13 +2987,17 @@ class OpenDotaClient:
             # 2. Mặc định: Thống kê trong ca stream hôm nay (session)
             session_matches, date_str = self.get_current_stream_matches()
             if not session_matches:
-                tot_100 = sum(len(d.get("diebacks", [])) for d in self._dieback_cache.values())
+                tot_100 = sum(len(d.get("diebacks", [])) for d in self._dieback_cache.values() if d.get("parsed", False))
                 return f"📅 Ca stream hôm nay ({date_str}) chưa có trận nào. Tổng 100 trận gần nhất có {tot_100} pha Dieback! Kỷ lục: Storm Spirit vừa BB xong đếm số sau 6s bởi Huskar."
 
             session_diebacks = []
+            unparsed_heroes = []
             for m in session_matches:
                 mid = m.get("match_id")
                 info = self.get_match_dieback_info(mid, m_meta=m)
+                if not info.get("parsed", False) and m.get("deaths", 0) > 0:
+                    h_name = self.get_hero_short_name(m.get("hero_id"))
+                    unparsed_heroes.append(h_name)
                 for db in info.get("diebacks", []):
                     session_diebacks.append({
                         "match_id": mid,
@@ -2928,7 +3011,12 @@ class OpenDotaClient:
 
             n_matches = len(session_matches)
             if not session_diebacks:
-                tot_100 = sum(len(d.get("diebacks", [])) for d in self._dieback_cache.values())
+                tot_100 = sum(len(d.get("diebacks", [])) for d in self._dieback_cache.values() if d.get("parsed", False))
+                if unparsed_heroes:
+                    return (
+                        f"⏳ Trận {'/'.join(unparsed_heroes)} vừa kết thúc đang được OpenDota phân tích replay (chờ ~15-30s). "
+                        f"Bạn vui lòng gõ lại !dieback sau ít phút để kiểm tra chính xác pha dieback nhé!"
+                    )
                 return (
                     f"🎉 Ca stream hôm nay ({n_matches} trận): 0 pha Dieback, streamer đánh rất tỉnh táo! "
                     f"(100 trận gần nhất có {tot_100} pha, kỷ lục: Storm Spirit BB xong hẹo sau đúng 6s bởi Huskar)."
@@ -2940,13 +3028,19 @@ class OpenDotaClient:
             h_name = self.get_hero_short_name(latest["hero_id"])
             b_min = latest["bb_time"] // 60
             b_sec = latest["bb_time"] % 60
-            k_name = _fmt_killer(latest["killer"])
+            k_name = self.format_killer_name(latest["killer"])
             res = "Thắng" if latest["win"] else "Thua"
 
-            return (
-                f"💀 Ca stream hôm nay ({n_matches} trận): Streamer có {db_count} pha Dieback! "
-                f"Trận {h_name} (BB phút {b_min}:{b_sec:02d} -> bay màu sau {latest['sec']}s bởi {k_name}). Kết quả: {res}."
-            )
+            unparsed_note = ""
+            if unparsed_heroes:
+                unparsed_note = f" (Trận {'/'.join(unparsed_heroes)} đang chờ phân tích replay)"
+
+            if db_count == 1:
+                detail_str = f"Trận {h_name} (BB phút {b_min}:{b_sec:02d} -> bay màu sau {latest['sec']}s bởi {k_name}). Kết quả: {res}."
+            else:
+                detail_str = f"Gần nhất: Trận {h_name} (BB phút {b_min}:{b_sec:02d} -> bay màu sau {latest['sec']}s bởi {k_name}, {res})."
+
+            return f"💀 Ca stream hôm nay ({n_matches} trận): Streamer có {db_count} pha Dieback! {detail_str}{unparsed_note}"
         except Exception as e:
             logger.error(f"Lỗi trong get_dieback_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
@@ -3066,8 +3160,20 @@ class OpenDotaClient:
             if mdata and "players" in mdata:
                 p = next((x for x in mdata["players"] if str(x.get("account_id")) == self.account_id), None)
                 if p:
-                    multi = p.get("multi_kills") or {}
-                    r_cnt = multi.get("5", 0) or multi.get(5, 0)
+                    version = mdata.get("version")
+                    multi = p.get("multi_kills")
+                    if version is None or multi is None:
+                        self.trigger_parse_match(mid)
+                        return {
+                            "has_rampage": False,
+                            "count": 0,
+                            "hero_id": p.get("hero_id") or (m_meta.get("hero_id") if m_meta else None),
+                            "kills": p.get("kills", 0) if p.get("kills") is not None else (m_meta.get("kills", 0) if m_meta else 0),
+                            "win": p.get("win") == 1 if p.get("win") is not None else (self._is_win(m_meta) if m_meta else False),
+                            "rampages": []
+                        }
+                    multi_dict = multi if isinstance(multi, dict) else {}
+                    r_cnt = multi_dict.get("5", 0) or multi_dict.get(5, 0)
                     has_rm = bool(r_cnt)
                     entry = {
                         "has_rampage": has_rm,
