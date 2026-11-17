@@ -1269,8 +1269,7 @@ class OpenDotaClient:
         """Generate response for !rank command."""
         try:
             player = self.get_player_data()
-            profile = player.get("profile", {})
-            name = profile.get("personaname", f"Player {self.account_id}")
+            name = "DH"
             rank_tier = player.get("rank_tier")
             leaderboard_rank = player.get("leaderboard_rank")
             
@@ -1294,8 +1293,7 @@ class OpenDotaClient:
     def get_today_message(self) -> str:
         """Generate response for !today command based on the current stream session."""
         try:
-            player = self.get_player_data()
-            name = player.get("profile", {}).get("personaname", "Streamer")
+            name = "DH"
 
             session_matches, date_str = self.get_current_stream_matches()
 
@@ -1372,8 +1370,7 @@ class OpenDotaClient:
     def get_yesterday_message(self) -> str:
         """Generate response for !yesterday / !homqua: thông tin kết quả phiên stream hôm trước."""
         try:
-            player = self.get_player_data()
-            name = player.get("profile", {}).get("personaname", "Streamer")
+            name = "DH"
 
             session_matches, date_str = self.get_yesterday_stream_matches()
 
@@ -1945,11 +1942,11 @@ class OpenDotaClient:
         try:
             game = self.get_live_game()
             if not game:
-                return "⚠️ Không thấy streamer trong top 100 trận live của OpenDota — có thể đang đánh nhưng trận không lọt top 100."
+                return "⚠️ Không thấy DH trong top 100 trận live của OpenDota — có thể đang đánh nhưng trận không lọt top 100."
             players = game.get("players") or []
             me = next((p for p in players if p.get("account_id") == int(self.account_id)), None)
             if not me:
-                return "⚠️ Không thấy streamer trong top 100 trận live của OpenDota — có thể đang đánh nhưng trận không lọt top 100."
+                return "⚠️ Không thấy DH trong top 100 trận live của OpenDota — có thể đang đánh nhưng trận không lọt top 100."
             game_time = int(game.get("game_time") or 0)
             if game_time < 0:
                 game_time = 0
@@ -2091,8 +2088,7 @@ class OpenDotaClient:
     def get_career_message(self) -> str:
         """Generate response for !career / !totals: thống kê toàn bộ sự nghiệp."""
         try:
-            player = self.get_player_data()
-            name = player.get("profile", {}).get("personaname", "Streamer")
+            name = "DH"
 
             wl = self.get_player_wl()
             w = wl.get("win", 0)
@@ -2139,9 +2135,7 @@ class OpenDotaClient:
     def get_funfact_message(self) -> str:
         """Generate response for !funfact / !ditat: ngẫu nhiên 1 trong 10 fact thú vị độc đáo."""
         try:
-            player = self.get_player_data()
-            raw_name = player.get("profile", {}).get("personaname", "Streamer")
-            name = (raw_name[:25] + "..") if len(raw_name) > 28 else raw_name
+            name = "DH"
 
             totals_list = self.get_player_totals()
             if not totals_list:
@@ -2294,7 +2288,7 @@ class OpenDotaClient:
         try:
             same_team_matches, today_duo_matches, date_str = self._get_all_connapse_duo_matches()
             if not same_team_matches:
-                return "🌸 Hôm nay streamer đơn độc leo rank, chưa thấy bóng dáng connapse."
+                return "🌸 Hôm nay DH đơn độc leo rank, chưa thấy bóng dáng connapse."
 
             all_wins = sum(1 for m in same_team_matches if self._is_win(m))
             all_games = len(same_team_matches)
@@ -2309,7 +2303,7 @@ class OpenDotaClient:
                     f"Tổng duo: {all_games} trận ({all_wins}W - {all_losses}L)."
                 )
             else:
-                return f"🌸 Hôm nay streamer đơn độc leo rank, chưa thấy bóng dáng connapse. (Tổng duo: {all_games} trận, {all_wins}W - {all_losses}L)."
+                return f"🌸 Hôm nay DH đơn độc leo rank, chưa thấy bóng dáng connapse. (Tổng duo: {all_games} trận, {all_wins}W - {all_losses}L)."
         except Exception as e:
             logger.error(f"Lỗi trong get_connapse_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
@@ -2552,7 +2546,7 @@ class OpenDotaClient:
                     a_wr = (a_w / a_g * 100.0) if a_g else 0.0
                     tag_str = f" ({team_tag})" if team_tag else ""
                     return (
-                        f"⚔️ Streamer vs {display_name}{tag_str} (tổng {tot_g} trận): "
+                        f"⚔️ DH vs {display_name}{tag_str} (tổng {tot_g} trận): "
                         f"Chung team {w_g} trận ({w_w}W-{w_g - w_w}L, {w_wr:.1f}%) | "
                         f"Đối đầu {a_g} trận ({a_w}W-{a_g - a_w}L, {a_wr:.1f}%)"
                     )
@@ -2831,7 +2825,7 @@ class OpenDotaClient:
             a_wr = (a_w / a_g * 100.0) if a_g else 0.0
 
             return (
-                f"⚔️ Streamer vs {p_name}{tag} (tổng {tot_g} trận): "
+                f"⚔️ DH vs {p_name}{tag} (tổng {tot_g} trận): "
                 f"Chung team {w_g} trận ({w_w}W-{w_g - w_w}L, {w_wr:.1f}%) | "
                 f"Đối đầu {a_g} trận ({a_w}W-{a_g - a_w}L, {a_wr:.1f}%)"
             )
@@ -3018,7 +3012,7 @@ class OpenDotaClient:
                         f"Bạn vui lòng gõ lại !dieback sau ít phút để kiểm tra chính xác pha dieback nhé!"
                     )
                 return (
-                    f"🎉 Ca stream hôm nay ({n_matches} trận): 0 pha Dieback, streamer đánh rất tỉnh táo! "
+                    f"🎉 Ca stream hôm nay ({n_matches} trận): 0 pha Dieback, DH đánh rất tỉnh táo! "
                     f"(100 trận gần nhất có {tot_100} pha, kỷ lục: Storm Spirit BB xong hẹo sau đúng 6s bởi Huskar)."
                 )
 
@@ -3040,7 +3034,7 @@ class OpenDotaClient:
             else:
                 detail_str = f"Gần nhất: Trận {h_name} (BB phút {b_min}:{b_sec:02d} -> bay màu sau {latest['sec']}s bởi {k_name}, {res})."
 
-            return f"💀 Ca stream hôm nay ({n_matches} trận): Streamer có {db_count} pha Dieback! {detail_str}{unparsed_note}"
+            return f"💀 Ca stream hôm nay ({n_matches} trận): DH có {db_count} pha Dieback! {detail_str}{unparsed_note}"
         except Exception as e:
             logger.error(f"Lỗi trong get_dieback_message: {e}", exc_info=True)
             return "⚠️ Máy chủ OpenDota đang phản hồi chậm, bạn vui lòng thử lại sau vài giây!"
